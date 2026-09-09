@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import { StatusFooter } from "@/components/shell/footer-status"
 import { deployment, deployments } from "@/test/deployments"
 import { renderWithProviders } from "@/test/render"
+import { setupUser } from "@/test/user"
 import { DeploymentsPage } from "./deployments-page"
 
 const noop = () => undefined
@@ -10,13 +11,14 @@ const noop = () => undefined
 const findTable = () => screen.findByRole("table", undefined, { timeout: 5000 })
 
 describe("DeploymentsPage", () => {
-  it("renders deployment rows with a promoted attribute column once the store is ready", async () => {
-    renderWithProviders(<DeploymentsPage query="" onQueryChange={noop} />)
+  it("renders deployment rows newest first with a promoted attribute column", async () => {
+    renderWithProviders(<DeploymentsPage query="" onQueryChange={noop} />, { rows: deployments(40) })
 
     const table = await findTable()
     expect(within(table).getByRole("columnheader", { name: /team/i })).toBeVisible()
     expect(within(table).getAllByRole("row").length).toBeGreaterThan(1)
-    expect(within(table).getByText("service-000")).toBeVisible()
+    expect(within(table).getByText("service-039")).toBeVisible()
+    expect(within(table).queryByText("service-000")).toBeNull()
   })
 
   it("shows skeleton rows while the store is still opening", () => {
@@ -53,6 +55,53 @@ describe("DeploymentsPage", () => {
     const deletedScope = await findTable()
     expect(within(deletedScope).getByText("service-001")).toBeVisible()
     expect(within(deletedScope).queryByText("service-000")).toBeNull()
+  })
+
+  it("renders a destructive chip with a tooltip for an invalid token and ignores it", async () => {
+    renderWithProviders(<DeploymentsPage query="nonsense:1" onQueryChange={noop} />, { rows: deployments(6) })
+
+    const table = await findTable()
+    expect(within(table).getAllByRole("row").length).toBeGreaterThan(1)
+    const chip = screen.getByText("nonsense:1")
+    expect(chip).toBeVisible()
+    expect(screen.getByRole("button", { name: "Remove nonsense:1" })).toBeVisible()
+  })
+
+  it("writes the sort directive into the query when a header is clicked", async () => {
+    const user = setupUser()
+    const queries: string[] = []
+    const record = (next: string | ((previous: string) => string)) =>
+      queries.push(typeof next === "function" ? next("") : next)
+    renderWithProviders(<DeploymentsPage query="" onQueryChange={record} />, { rows: deployments(8) })
+
+    const table = await findTable()
+    await user.click(within(table).getByRole("button", { name: "name" }))
+
+    expect(queries.at(-1)).toBe("sort:name")
+  })
+
+  it("orders rows and marks the header when the sort directive is set", async () => {
+    renderWithProviders(<DeploymentsPage query="sort:name" onQueryChange={noop} />, { rows: deployments(8) })
+
+    const table = await findTable()
+    const header = within(table)
+      .getAllByRole("columnheader")
+      .find((cell) => cell.textContent?.trim() === "name")
+    expect(header).toHaveAttribute("aria-sort", "ascending")
+    const names = within(table)
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => row.textContent?.match(/service-\d+/)?.[0])
+      .filter((name) => name !== undefined)
+    expect(names).toEqual([...names].sort())
+  })
+
+  it("groups by an attribute and keeps the groups expanded", async () => {
+    renderWithProviders(<DeploymentsPage query="group:team" onQueryChange={noop} />, { rows: deployments(9) })
+
+    const table = await findTable()
+    expect(within(table).getByText("payments")).toBeVisible()
+    expect(within(table).getAllByRole("button", { name: /collapse group/i }).length).toBeGreaterThan(0)
   })
 
   it("reports the matched count in the footer the shell renders", async () => {

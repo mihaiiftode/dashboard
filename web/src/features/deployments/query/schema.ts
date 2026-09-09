@@ -121,6 +121,12 @@ export function buildSchema(rows: Deployment[]): Schema {
   }
 }
 
+const UNGROUPABLE_KINDS: FieldKind[] = ["id", "date"]
+
+export function groupCandidates(schema: Schema): Field[] {
+  return schema.fields.filter((field) => !UNGROUPABLE_KINDS.includes(field.kind) && field.key !== "description")
+}
+
 export function resolveKey(schema: Schema, raw: string): Field | undefined {
   const k = raw.toLowerCase()
   return schema.byKey.get(ALIASES[k] ?? k)

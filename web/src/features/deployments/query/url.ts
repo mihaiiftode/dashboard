@@ -1,3 +1,9 @@
-import { parseAsString } from "nuqs"
+import { debounce, parseAsString } from "nuqs"
 
-export const queryParser = parseAsString.withDefault("").withOptions({ history: "push", clearOnDefault: true })
+const URL_SETTLE_MS = 350
+
+export const queryParser = parseAsString.withDefault("").withOptions({
+  history: "push",
+  clearOnDefault: true,
+  limitUrlUpdates: debounce(URL_SETTLE_MS),
+})

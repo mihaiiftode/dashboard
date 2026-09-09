@@ -3,6 +3,9 @@
 import { useCallback, useMemo } from "react"
 import { useLiveQuery } from "@tanstack/react-db"
 import { notify } from "@/lib/notify"
+import { compileQuery } from "../query/compile"
+import type { Resolved } from "../query/apply"
+import type { Schema } from "../query/schema"
 import { useDeploymentsCollection } from "./store-context"
 import type { Deployment } from "./schema"
 
@@ -18,9 +21,25 @@ export type DeploymentsAccess = {
 const NONE: ReadonlySet<string> = new Set()
 const RETENTION_NOTE = "Recoverable for 30 days under is:deleted."
 
-export const useDeployments = (): DeploymentsAccess => {
+export const useAllDeployments = (): Deployment[] => {
   const collection = useDeploymentsCollection()
-  const { data } = useLiveQuery((query) => query.from({ deployment: collection }))
+  const { data } = useLiveQuery((query) => query.from({ deployment: collection }), [collection])
+  return data
+}
+
+export const useMatchedDeployments = (state: Resolved, schema: Schema): Deployment[] => {
+  const collection = useDeploymentsCollection()
+  const { data } = useLiveQuery(
+    (query) => compileQuery(query.from({ deployment: collection }), state, schema),
+    [collection, state, schema],
+  )
+  return data as Deployment[]
+}
+
+export const useDeploymentWrites = (): Omit<DeploymentsAccess, "rows" | "pendingIds"> & {
+  pendingIds: ReadonlySet<string>
+} => {
+  const collection = useDeploymentsCollection()
 
   const setAttribute = useCallback(
     (id: string, key: string, value: string) => {
@@ -78,8 +97,8 @@ export const useDeployments = (): DeploymentsAccess => {
   }, [])
 
   return useMemo(
-    () => ({ rows: data, pendingIds: NONE, setAttribute, remove, restore, copyId }),
-    [data, setAttribute, remove, restore, copyId],
+    () => ({ pendingIds: NONE, setAttribute, remove, restore, copyId }),
+    [setAttribute, remove, restore, copyId],
   )
 }
 

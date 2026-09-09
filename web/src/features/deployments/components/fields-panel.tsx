@@ -5,7 +5,7 @@ import { ChevronRightIcon, Columns3Icon, LayersIcon, RotateCcwIcon, SearchIcon, 
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
-import type { Field, Schema } from "../query/schema"
+import { groupCandidates, type Field, type Schema } from "../query/schema"
 import type { Deployment } from "../store/schema"
 import { cn } from "@/lib/utils"
 
@@ -138,7 +138,7 @@ export const FieldsPanel = ({
 }: FieldsPanelProps) => {
   const [search, setSearch] = useState("")
   const q = search.trim().toLowerCase()
-  const fields = schema.fields.filter((f) => f.kind !== "id" && f.kind !== "date" && f.key !== "description")
+  const fields = groupCandidates(schema)
   return (
     <aside className="flex w-72 shrink-0 flex-col border-l bg-card" aria-label="Fields">
       <div className="flex h-9 items-center justify-between px-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">

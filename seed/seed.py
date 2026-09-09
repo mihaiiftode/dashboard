@@ -4,10 +4,12 @@ Populates MongoDB with ~5,000 realistic deployment records.
 
 Usage:
     pip install -r requirements.txt
-    python seed.py
+    python seed.py [count]
 """
 
+import os
 import random
+import sys
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -20,7 +22,7 @@ MONGO_URI = "mongodb://localhost:27017"
 DB_NAME = "deployments"
 COLLECTION_NAME = "deployments"
 
-NUM_DEPLOYMENTS = 5000
+DEFAULT_DEPLOYMENTS = 5000
 
 STATUSES = ["active", "failed", "stopped"]
 STATUS_WEIGHTS = [0.6, 0.15, 0.25]
@@ -130,18 +132,25 @@ def generate_deployment() -> dict:
     return deployment
 
 
+def requested_count() -> int:
+    if len(sys.argv) > 1:
+        return int(sys.argv[1])
+    return int(os.environ.get("SEED_COUNT", DEFAULT_DEPLOYMENTS))
+
+
 def main():
+    count = requested_count()
     client = MongoClient(MONGO_URI)
     db = client[DB_NAME]
     collection = db[COLLECTION_NAME]
 
     collection.drop()
-    print(f"Generating {NUM_DEPLOYMENTS} deployments...")
+    print(f"Generating {count} deployments...")
 
-    deployments = [generate_deployment() for _ in range(NUM_DEPLOYMENTS)]
+    deployments = [generate_deployment() for _ in range(count)]
 
     collection.insert_many(deployments)
-    print(f"Inserted {NUM_DEPLOYMENTS} deployments into {DB_NAME}.{COLLECTION_NAME}")
+    print(f"Inserted {count} deployments into {DB_NAME}.{COLLECTION_NAME}")
 
     collection.create_index("deployment_id", unique=True)
     collection.create_index("created_at")

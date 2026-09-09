@@ -1,13 +1,13 @@
 "use client"
 
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useDeferredValue, useMemo, useState } from "react"
 import { columnsFor, type RowActions } from "../components/table/columns"
 import type { Sort } from "../components/table/deployments-table"
-import { applyFilters, resolve, showsDeleted, sortRows } from "../query/apply"
+import { resolve, showsDeleted } from "../query/apply"
 import { addValue, parse, upsertDirective } from "../query/grammar"
 import { buildSchema, defaultVisible, type Schema } from "../query/schema"
 import { useFooterCounts } from "./use-footer-counts"
-import { useDeployments } from "../store/use-deployments"
+import { useAllDeployments, useDeploymentWrites, useMatchedDeployments } from "../store/use-deployments"
 
 export const QUERY_INPUT_ID = "search"
 
@@ -17,18 +17,19 @@ const DEFAULT_SORT: Sort = { key: "created", desc: true }
 export type QueryChange = (next: string | ((previous: string) => string)) => void
 
 export const useDeploymentsView = (query: string, onQueryChange: QueryChange) => {
-  const store = useDeployments()
-  const { rows } = store
+  const rows = useAllDeployments()
+  const writes = useDeploymentWrites()
   const schema = useMemo(() => buildSchema(rows), [rows])
   const [chosen, setChosen] = useState<ReadonlySet<string> | null>(null)
   const [fieldsOpen, setFieldsOpen] = useState(false)
 
   const visible = useMemo(() => chosen ?? new Set(defaultColumns(schema)), [chosen, schema])
   const resolved = useMemo(() => resolve(parse(query), schema), [query, schema])
-  const sort = resolved.sort ?? DEFAULT_SORT
-  const sorted = useMemo(() => sortRows(rows, sort, schema), [rows, sort, schema])
-  const matched = useMemo(() => applyFilters(sorted, resolved.filters, schema), [sorted, resolved.filters, schema])
-  const deletedScope = showsDeleted(resolved.filters)
+  const settledQuery = useDeferredValue(query)
+  const settled = useMemo(() => resolve(parse(settledQuery), schema), [settledQuery, schema])
+  const sort = settled.sort ?? DEFAULT_SORT
+  const matched = useMatchedDeployments(settled, schema)
+  const deletedScope = showsDeleted(settled.filters)
   const total = useMemo(() => countInScope(rows, deletedScope), [rows, deletedScope])
   const fields = useMemo(
     () => schema.fields.filter((field) => visible.has(field.key) || (field.key === "deleted" && deletedScope)),
@@ -38,12 +39,12 @@ export const useDeploymentsView = (query: string, onQueryChange: QueryChange) =>
 
   const actions = useMemo<RowActions>(
     () => ({
-      onSetAttribute: store.setAttribute,
-      onDelete: store.remove,
-      onRestore: store.restore,
-      onCopyId: store.copyId,
+      onSetAttribute: writes.setAttribute,
+      onDelete: writes.remove,
+      onRestore: writes.restore,
+      onCopyId: writes.copyId,
     }),
-    [store.setAttribute, store.remove, store.restore, store.copyId],
+    [writes],
   )
 
   const onSortChange = useCallback(
@@ -85,12 +86,12 @@ export const useDeploymentsView = (query: string, onQueryChange: QueryChange) =>
     matched,
     schema,
     columns,
-    pendingIds: store.pendingIds,
+    pendingIds: writes.pendingIds,
     fields,
     hasAttributesColumn: hiddenAttributeKeys.length > 0,
     visible,
     invalid: resolved.invalid,
-    group: resolved.group,
+    group: settled.group,
     sort,
     actions,
     fieldsOpen,

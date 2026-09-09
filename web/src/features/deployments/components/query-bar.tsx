@@ -1,6 +1,6 @@
 "use client"
 
-import { type ReactNode, useCallback, useMemo, useRef, useState } from "react"
+import { type ReactNode, useCallback, useDeferredValue, useMemo, useRef, useState } from "react"
 import { XIcon } from "lucide-react"
 import {
   Autocomplete,
@@ -43,7 +43,12 @@ export const QueryBar = ({ inputId, query, onQueryChange, rows, schema, invalid,
   const [open, setOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const { span: activeSpan, items } = useMemo(() => suggest(query, caret, rows, schema), [query, caret, rows, schema])
+  const settledQuery = useDeferredValue(query)
+  const settledCaret = useDeferredValue(caret)
+  const { span: activeSpan, items } = useMemo(
+    () => suggest(settledQuery, settledCaret, rows, schema),
+    [settledQuery, settledCaret, rows, schema],
+  )
   const tokens = useMemo(
     () => splitTokens(query).map((token) => ({ start: token.start, parsed: parseToken(token.raw) })),
     [query],

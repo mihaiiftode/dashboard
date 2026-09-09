@@ -9,11 +9,31 @@ const PRIORITIES = ["critical", "high", "medium", "low"] as const
 
 const BASE_MS = Date.parse("2026-03-01T12:00:00.000Z")
 const MINUTE_MS = 60_000
-const UUID_TEMPLATE = "00000000-0000-4000-8000-000000000000"
+const DAY_MS = 86_400_000
+
+const hexDigitsFor = (index: number): string => {
+  let state = (index + 1) * 2654435761
+  let digits = ""
+  while (digits.length < 32) {
+    state ^= state << 13
+    state ^= state >>> 17
+    state ^= state << 5
+    digits += (state >>> 0).toString(16).padStart(8, "0")
+  }
+  return digits.slice(0, 32)
+}
 
 export const deploymentId = (index: number): string => {
-  const suffix = String(index).padStart(12, "0")
-  return `${UUID_TEMPLATE.slice(0, 24)}${suffix}`
+  const hex = hexDigitsFor(index)
+  const withVersion = `${hex.slice(0, 12)}4${hex.slice(13, 16)}`
+  const withVariant = `8${hex.slice(17, 20)}`
+  return [
+    withVersion.slice(0, 8),
+    withVersion.slice(8, 12),
+    withVersion.slice(12, 16),
+    withVariant,
+    hex.slice(20, 32),
+  ].join("-")
 }
 
 export type DeploymentOverrides = Partial<Omit<Deployment, "attributes">> & {
@@ -37,7 +57,7 @@ export const deployment = (index: number, overrides: DeploymentOverrides = {}): 
       priority: PRIORITIES[index % PRIORITIES.length],
       ...attributes,
     },
-    created_at: new Date(BASE_MS - MINUTE_MS).toISOString(),
+    created_at: new Date(BASE_MS - DAY_MS + index * MINUTE_MS).toISOString(),
     created_by: `engineer-${index % 4}@example.com`,
     updated_at: stamp,
     deleted_at: null,

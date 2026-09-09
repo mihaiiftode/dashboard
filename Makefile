@@ -13,7 +13,7 @@ web:
 	cd web && pnpm dev
 
 seed:
-	cd seed && uv run --with-requirements requirements.txt python seed.py
+	cd seed && uv run --with-requirements requirements.txt python seed.py $(COUNT)
 
 test: test-api test-web
 
