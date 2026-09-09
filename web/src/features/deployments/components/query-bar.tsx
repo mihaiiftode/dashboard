@@ -1,6 +1,6 @@
 "use client"
 
-import { type ReactNode, useCallback, useDeferredValue, useMemo, useRef, useState } from "react"
+import { type ReactNode, useCallback, useMemo, useRef, useState } from "react"
 import { XIcon } from "lucide-react"
 import {
   Autocomplete,
@@ -15,40 +15,39 @@ import { Button } from "@/components/ui/button"
 import { Kbd } from "@/components/ui/kbd"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { removeToken, replaceSpan, splitTokens, parseToken, type Token } from "../query/grammar"
-import type { Schema } from "../query/schema"
-import { suggest, type Suggestion } from "../query/suggest"
-import type { Deployment } from "../store/schema"
+import type { Suggestion, SuggestionKind, Suggestions } from "../query/suggest"
 import { cn } from "@/lib/utils"
 
-const KIND_CLASS: Record<Suggestion["kind"], string> = {
+const KIND_CLASS: Record<SuggestionKind, string> = {
   key: "text-foreground",
   value: "text-foreground",
-  contains: "text-foreground",
+  anywhere: "text-muted-foreground italic",
   directive: "text-muted-foreground",
-  hint: "text-muted-foreground italic",
 }
 
 type QueryBarProps = {
   inputId: string
   query: string
+  suggestions: Suggestions
   onQueryChange: (next: string) => void
-  rows: Deployment[]
-  schema: Schema
+  onCaretChange: (caret: number) => void
   invalid: Token[]
   trailing?: ReactNode
 }
 
-export const QueryBar = ({ inputId, query, onQueryChange, rows, schema, invalid, trailing }: QueryBarProps) => {
-  const [caret, setCaret] = useState(query.length)
+export const QueryBar = ({
+  inputId,
+  query,
+  suggestions,
+  onQueryChange,
+  onCaretChange,
+  invalid,
+  trailing,
+}: QueryBarProps) => {
   const [open, setOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const { span: activeSpan, items, preselect } = suggestions
 
-  const settledQuery = useDeferredValue(query)
-  const settledCaret = useDeferredValue(caret)
-  const { span: activeSpan, items } = useMemo(
-    () => suggest(settledQuery, settledCaret, rows, schema),
-    [settledQuery, settledCaret, rows, schema],
-  )
   const tokens = useMemo(
     () => splitTokens(query).map((token) => ({ start: token.start, parsed: parseToken(token.raw) })),
     [query],
@@ -56,17 +55,17 @@ export const QueryBar = ({ inputId, query, onQueryChange, rows, schema, invalid,
   const invalidRaw = useMemo(() => new Set(invalid.map((t) => t.raw)), [invalid])
 
   const syncCaret = useCallback(() => {
-    const el = inputRef.current
-    if (el) setCaret(el.selectionStart ?? el.value.length)
-  }, [])
+    const input = inputRef.current
+    if (input) onCaretChange(input.selectionStart ?? input.value.length)
+  }, [onCaretChange])
 
-  const placeCaret = (pos: number) => {
-    setCaret(pos)
+  const placeCaret = (position: number) => {
+    onCaretChange(position)
     requestAnimationFrame(() => {
-      const el = inputRef.current
-      if (!el) return
-      el.focus()
-      el.setSelectionRange(pos, pos)
+      const input = inputRef.current
+      if (!input) return
+      input.focus()
+      input.setSelectionRange(position, position)
     })
   }
 
@@ -88,7 +87,7 @@ export const QueryBar = ({ inputId, query, onQueryChange, rows, schema, invalid,
               }
               onQueryChange(value)
             }}
-            autoHighlight={items[0]?.kind !== "contains"}
+            autoHighlight={preselect}
             open={open}
             onOpenChange={setOpen}
           >

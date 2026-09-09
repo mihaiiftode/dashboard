@@ -117,4 +117,50 @@ describe("DeploymentsPage", () => {
     const footer = screen.getByRole("contentinfo")
     expect(within(footer).getByRole("status")).toHaveTextContent("3")
   })
+  it("shows a hidden attribute column when its column toggle is pressed in the fields panel", async () => {
+    const user = setupUser()
+    const rows = [deployment(0, { attributes: { oncall: "on@example.com" } }), ...deployments(8).slice(1)]
+    renderWithProviders(<DeploymentsPage query="" onQueryChange={noop} />, { rows })
+
+    const table = await findTable()
+    expect(within(table).queryByRole("columnheader", { name: /oncall/i })).toBeNull()
+    await user.click(screen.getByRole("button", { name: "Fields" }))
+    await user.click(await screen.findByRole("button", { name: "Show oncall column" }))
+
+    expect(within(await findTable()).getByRole("columnheader", { name: /oncall/i })).toBeVisible()
+  })
+
+  it("adds a filter token when a top value is picked in the fields panel", async () => {
+    const user = setupUser()
+    const queries: string[] = []
+    const record = (next: string | ((previous: string) => string)) =>
+      queries.push(typeof next === "function" ? next("") : next)
+    renderWithProviders(<DeploymentsPage query="" onQueryChange={record} />, { rows: deployments(9) })
+
+    await findTable()
+    await user.click(screen.getByRole("button", { name: "Fields" }))
+    const panel = screen.getByRole("complementary", { name: "Fields" })
+    await user.click(within(panel).getByRole("button", { name: /^team/ }))
+    await user.click(await within(panel).findByRole("button", { name: "Filter team: payments" }))
+
+    expect(queries.at(-1)).toBe("team:payments")
+  })
+
+  it("lists an attribute key in the fields panel as soon as a row carries it", async () => {
+    const user = setupUser()
+    const rows = [deployment(0, { attributes: { oncall: "on@example.com" } }), ...deployments(8).slice(1)]
+    renderWithProviders(<DeploymentsPage query="" onQueryChange={noop} />, { rows })
+
+    const table = await findTable()
+    await user.click(screen.getByRole("button", { name: "Fields" }))
+    const panel = screen.getByRole("complementary", { name: "Fields" })
+    expect(within(panel).queryByRole("button", { name: /^canary/ })).toBeNull()
+
+    await user.click(within(table).getByRole("button", { name: /edit attributes of service-000/i }))
+    await user.type(screen.getByRole("textbox", { name: "New attribute key" }), "canary")
+    await user.type(screen.getByRole("textbox", { name: "New attribute value" }), "true")
+    await user.click(screen.getByRole("button", { name: "Add attribute" }))
+
+    expect(await within(panel).findByRole("button", { name: /^canary/ })).toBeVisible()
+  })
 })

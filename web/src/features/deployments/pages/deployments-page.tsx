@@ -2,6 +2,7 @@
 
 import { DeploymentsTable } from "../components/table/deployments-table"
 import { FeatureBoundary } from "../components/feature-boundary"
+import { FieldIndexRow } from "../components/field-index-row"
 import { FieldsPanel } from "../components/fields-panel"
 import { NoMatches } from "../components/no-matches"
 import { QueryBar } from "../components/query-bar"
@@ -38,9 +39,9 @@ const DeploymentsBrowser = ({ query, onQueryChange }: DeploymentsPageProps) => {
       <QueryBar
         inputId={QUERY_INPUT_ID}
         query={query}
+        suggestions={view.suggestions}
         onQueryChange={onQueryChange}
-        rows={view.rows}
-        schema={view.schema}
+        onCaretChange={view.onCaretChange}
         invalid={view.invalid}
         trailing={<FieldsToggle open={view.fieldsOpen} onToggle={view.onToggleFields} />}
       />
@@ -64,15 +65,27 @@ const DeploymentsBrowser = ({ query, onQueryChange }: DeploymentsPageProps) => {
         </div>
         {view.fieldsOpen ? (
           <FieldsPanel
-            schema={view.schema}
-            rows={view.matched}
-            visible={view.visible}
-            group={view.group}
-            onToggleColumn={view.onToggleColumn}
-            onGroup={view.onGroupChange}
-            onFilter={view.onFilter}
+            total={view.matched.length}
+            search={view.fieldSearch}
+            onSearchChange={view.onFieldSearchChange}
             onResetColumns={view.onResetColumns}
-          />
+          >
+            {view.listedFields.map((field) => (
+              <FieldIndexRow
+                key={field.key}
+                field={field}
+                filters={view.queryFilters}
+                schema={view.schema}
+                search={view.fieldSearchTerm}
+                total={view.matched.length}
+                visible={view.visible.has(field.key)}
+                grouped={view.group === field.key}
+                onToggleColumn={() => view.onToggleColumn(field.key)}
+                onGroup={() => view.onGroupChange(view.group === field.key ? null : field.key)}
+                onFilter={(value) => view.onFilter(field.key, value)}
+              />
+            ))}
+          </FieldsPanel>
         ) : null}
       </div>
     </>

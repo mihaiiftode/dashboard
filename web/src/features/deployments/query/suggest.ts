@@ -1,16 +1,24 @@
-import type { Deployment } from "../store/schema"
-import { applyFilters, DELETED_SCOPE, resolve } from "./apply"
-import { parse, parseToken, quoteIfNeeded, spanAt, type Span } from "./grammar"
-import { resolveKey, type Schema } from "./schema"
+import { quoteIfNeeded, spanAt, type Span } from "./grammar"
+import { groupCandidates, resolveKey, type Field, type FieldKind, type Schema } from "./schema"
+import { coveredBy, topValues, type ValueIndex } from "./value-index"
+
+export type SuggestionKind = "key" | "value" | "anywhere" | "directive"
 
 export type Suggestion = {
   id: string
-  kind: "key" | "value" | "contains" | "directive" | "hint"
+  kind: SuggestionKind
   label: string
   detail?: string
   count?: number
   insert: string
 }
+
+export type SuggestContext = {
+  index: ValueIndex
+  deletedRows: number
+}
+
+export type Suggestions = { span: Span | null; items: Suggestion[]; preselect: boolean }
 
 const DIRECTIVE_DETAIL: Record<string, string> = {
   group: "group rows by a column",
@@ -19,140 +27,167 @@ const DIRECTIVE_DETAIL: Record<string, string> = {
   is: "is:deleted shows the trash",
 }
 const DIRECTIVE_KEYS = Object.keys(DIRECTIVE_DETAIL)
-const AGE_VALUES = ["<24h", "<7d", "<30d", ">30d", ">90d"]
+const AGES = ["<24h", "<7d", "<30d", ">30d", ">90d"]
+const DELETED_SCOPE = "deleted"
+const VALUE_LIMIT = 12
+const INDEXED_KINDS: FieldKind[] = ["enum", "string"]
 
-export function suggest(
-  query: string,
-  caret: number,
-  rows: Deployment[],
-  schema: Schema,
-): { span: Span | null; items: Suggestion[] } {
+type Cursor = {
+  span: Span | null
+  raw: string
+  prefix: string
+  body: string
+  key: string | null
+  rest: string
+  partial: string
+  comparator: string
+  chosen: string[]
+}
+
+export const suggest = (query: string, caret: number, schema: Schema, context: SuggestContext): Suggestions => {
+  const cursor = cursorAt(query, caret)
+  const items = itemsFor(cursor, schema, context)
+  return { span: cursor.span, items, preselect: items.length > 0 && items[0].kind !== "anywhere" }
+}
+
+export const indexFieldAt = (query: string, caret: number, schema: Schema): Field | null => {
+  const { key } = cursorAt(query, caret)
+  if (key === null || DIRECTIVE_KEYS.includes(key)) return null
+  const field = resolveKey(schema, key)
+  return field && INDEXED_KINDS.includes(field.kind) ? field : null
+}
+
+const cursorAt = (query: string, caret: number): Cursor => {
   const span = spanAt(query, caret)
   const raw = span?.raw ?? ""
-  const negated = raw.startsWith("-")
-  const body = negated ? raw.slice(1) : raw
+  const prefix = raw.startsWith("-") ? "-" : ""
+  const body = raw.slice(prefix.length)
   const colon = body.indexOf(":")
-  const prefix = negated ? "-" : ""
-
-  if (colon === -1) {
-    const q = body.toLowerCase()
-    const keys = [...schema.fields.map((f) => f.key), ...DIRECTIVE_KEYS].filter((k) => k.startsWith(q))
-    const items: Suggestion[] = keys.map((k) => {
-      const field = schema.byKey.get(k)
-      const count = field?.attribute ? schema.attributeCounts.get(k) : undefined
-      const detail = DIRECTIVE_DETAIL[k] ?? (field?.attribute ? "attribute" : field?.kind)
-      return {
-        id: `key:${k}`,
-        kind: DIRECTIVE_KEYS.includes(k) ? "directive" : "key",
-        label: `${prefix}${k}:`,
-        detail,
-        count,
-        insert: `${prefix}${k}:`,
-      }
-    })
-    if (q !== "")
-      items.push({ id: "hint:text", kind: "hint", label: `“${body}”`, detail: "match anywhere", insert: raw })
-    return { span, items }
-  }
-
-  const key = body.slice(0, colon).toLowerCase()
+  if (colon === -1)
+    return { span, raw, prefix, body, key: null, rest: "", partial: body.toLowerCase(), comparator: "", chosen: [] }
   const rest = body.slice(colon + 1)
   const parts = rest.split(",")
-  const partial = parts[parts.length - 1].replace(/^[<>]/, "").toLowerCase()
-  const chosen = parts.slice(0, -1)
-  const withChosen = (v: string) => `${prefix}${key}:${[...chosen, v].join(",")} `
-
-  if (key === "group" || key === "sort") {
-    const desc = key === "sort" && rest.startsWith("-")
-    const items = schema.fields
-      .filter((f) => f.key.startsWith(desc ? partial.slice(1) : partial))
-      .map((f) => ({
-        id: `${key}:${f.key}`,
-        kind: "directive" as const,
-        label: `${key}:${desc ? "-" : ""}${f.key}`,
-        detail: f.attribute ? "attribute" : f.label,
-        insert: `${key}:${desc ? "-" : ""}${f.key} `,
-      }))
-    return { span, items }
-  }
-  if (key === "is") {
-    if (!DELETED_SCOPE.startsWith(partial)) return { span, items: [] }
-    const deleted = rows.reduce((n, d) => n + (d.deleted_at !== null ? 1 : 0), 0)
-    return {
-      span,
-      items: [
-        {
-          id: "is:deleted",
-          kind: "value",
-          label: `${prefix}is:${DELETED_SCOPE}`,
-          detail: "recoverable for 30 days",
-          count: deleted,
-          insert: `${prefix}is:${DELETED_SCOPE} `,
-        },
-      ],
-    }
-  }
-  if (key === "has") {
-    const items = schema.attributeKeys
-      .filter((k) => k.startsWith(partial))
-      .map((k) => ({
-        id: `has:${k}`,
-        kind: "value" as const,
-        label: `${prefix}has:${k}`,
-        count: schema.attributeCounts.get(k),
-        insert: `${prefix}has:${k} `,
-      }))
-    return { span, items }
-  }
-
-  const field = resolveKey(schema, key)
-  if (!field) return { span, items: [] }
-
-  if (field.kind === "date") {
-    const items = AGE_VALUES.filter((v) => v.replace(/^[<>]/, "").startsWith(partial)).map((v) => ({
-      id: `${key}:${v}`,
-      kind: "value" as const,
-      label: `${prefix}${key}:${v}`,
-      detail: v.startsWith("<") ? "newer than" : "older than",
-      insert: `${prefix}${key}:${v} `,
-    }))
-    return { span, items }
-  }
-
-  const tokens = parse(query)
-  const current = span ? parseToken(span.raw) : undefined
-  const { filters } = resolve(tokens, schema)
-  const context = applyFilters(
-    rows,
-    filters,
-    schema,
-    filters.find((f) => f.raw === current?.raw),
-  )
-  const counts = new Map<string, number>()
-  for (const d of context) {
-    const v = field.read(d)
-    if (v !== undefined) counts.set(v, (counts.get(v) ?? 0) + 1)
-  }
-  const matching = [...counts.entries()].filter(([v]) => v.toLowerCase().includes(partial) && !chosen.includes(v))
-  const values: Suggestion[] = matching
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 12)
-    .map(([v, count]) => ({
-      id: `${key}:${v}`,
-      kind: "value",
-      label: `${prefix}${key}:${quoteIfNeeded(v)}`,
-      count,
-      insert: withChosen(quoteIfNeeded(v)),
-    }))
-  if (field.kind === "enum") return { span, items: values }
   const typed = parts[parts.length - 1]
-  const contains: Suggestion = {
-    id: "contains",
-    kind: "contains",
-    label: `${prefix}${key}:${typed === "" ? "…" : quoteIfNeeded(typed)}`,
-    detail: "matches anywhere",
-    count: matching.reduce((n, [, c]) => n + c, 0),
-    insert: typed === "" ? `${prefix}${key}:` : withChosen(quoteIfNeeded(typed)),
+  const comparator = typed.startsWith("<") || typed.startsWith(">") ? typed.slice(0, 1) : ""
+  return {
+    span,
+    raw,
+    prefix,
+    body,
+    key: body.slice(0, colon).toLowerCase(),
+    rest,
+    partial: typed.slice(comparator.length).toLowerCase(),
+    comparator,
+    chosen: parts.slice(0, -1),
   }
-  return { span, items: [contains, ...values] }
 }
+
+const itemsFor = (cursor: Cursor, schema: Schema, context: SuggestContext): Suggestion[] => {
+  if (cursor.key === null) return keyItems(cursor, schema)
+  if (cursor.key === "group") return directiveItems(cursor, groupCandidates(schema))
+  if (cursor.key === "sort") return directiveItems(cursor, schema.fields)
+  if (cursor.key === "is") return scopeItems(cursor, context)
+  if (cursor.key === "has") return presenceItems(cursor, schema)
+  const field = resolveKey(schema, cursor.key)
+  if (!field) return []
+  if (field.kind === "date") return ageItems(cursor, field)
+  return valueItems(cursor, field, context.index)
+}
+
+const keyItems = (cursor: Cursor, schema: Schema): Suggestion[] => {
+  const keys = [...schema.fields.map((field) => field.key), ...DIRECTIVE_KEYS].filter((key) =>
+    key.startsWith(cursor.partial),
+  )
+  const items = keys.map<Suggestion>((key) => {
+    const field = schema.byKey.get(key)
+    return {
+      id: `key:${key}`,
+      kind: DIRECTIVE_KEYS.includes(key) ? "directive" : "key",
+      label: `${cursor.prefix}${key}:`,
+      detail: DIRECTIVE_DETAIL[key] ?? (field?.attribute ? "attribute" : field?.kind),
+      count: field?.attribute ? schema.attributeCounts.get(key) : undefined,
+      insert: `${cursor.prefix}${key}:`,
+    }
+  })
+  if (cursor.body === "") return items
+  return [
+    ...items,
+    { id: "anywhere:text", kind: "anywhere", label: `“${cursor.body}”`, detail: "match anywhere", insert: cursor.raw },
+  ]
+}
+
+const directiveItems = (cursor: Cursor, fields: readonly Field[]): Suggestion[] => {
+  const desc = cursor.rest.startsWith("-")
+  const wanted = desc ? cursor.partial.slice(1) : cursor.partial
+  const sign = desc ? "-" : ""
+  return fields
+    .filter((field) => field.key.startsWith(wanted))
+    .map((field) => ({
+      id: `${cursor.key}:${field.key}`,
+      kind: "directive",
+      label: `${cursor.key}:${sign}${field.key}`,
+      detail: field.attribute ? "attribute" : field.label,
+      insert: `${cursor.key}:${sign}${field.key} `,
+    }))
+}
+
+const scopeItems = (cursor: Cursor, context: SuggestContext): Suggestion[] => {
+  if (!DELETED_SCOPE.startsWith(cursor.partial)) return []
+  return [
+    {
+      id: "is:deleted",
+      kind: "value",
+      label: `${cursor.prefix}is:${DELETED_SCOPE}`,
+      detail: "recoverable for 30 days",
+      count: context.deletedRows,
+      insert: `${cursor.prefix}is:${DELETED_SCOPE} `,
+    },
+  ]
+}
+
+const presenceItems = (cursor: Cursor, schema: Schema): Suggestion[] =>
+  schema.attributeKeys
+    .filter((key) => key.startsWith(cursor.partial))
+    .map((key) => ({
+      id: `has:${key}`,
+      kind: "value",
+      label: `${cursor.prefix}has:${key}`,
+      count: schema.attributeCounts.get(key),
+      insert: `${cursor.prefix}has:${key} `,
+    }))
+
+const ageItems = (cursor: Cursor, field: Field): Suggestion[] =>
+  AGES.filter((age) => age.startsWith(cursor.comparator) && age.slice(1).startsWith(cursor.partial)).map((age) => ({
+    id: `${field.key}:${age}`,
+    kind: "value",
+    label: `${cursor.prefix}${field.key}:${age}`,
+    detail: age.startsWith("<") ? "newer than" : "older than",
+    insert: `${cursor.prefix}${field.key}:${age} `,
+  }))
+
+const valueItems = (cursor: Cursor, field: Field, index: ValueIndex): Suggestion[] => {
+  const values = topValues(index, cursor.partial, VALUE_LIMIT, cursor.chosen).map<Suggestion>((entry) => ({
+    id: `${field.key}:${entry.value}`,
+    kind: "value",
+    label: `${cursor.prefix}${field.key}:${quoteIfNeeded(entry.value)}`,
+    count: entry.rows,
+    insert: insertOf(cursor, field, quoteIfNeeded(entry.value)),
+  }))
+  if (field.kind === "enum") return values
+  return [anywhereItem(cursor, field, index), ...values]
+}
+
+const anywhereItem = (cursor: Cursor, field: Field, index: ValueIndex): Suggestion => {
+  const typed = cursor.rest.split(",").at(-1) ?? ""
+  return {
+    id: "anywhere:value",
+    kind: "anywhere",
+    label: `${cursor.prefix}${field.key}:${typed === "" ? "…" : quoteIfNeeded(typed)}`,
+    detail: "matches anywhere",
+    count: coveredBy(index, cursor.partial),
+    insert: typed === "" ? `${cursor.prefix}${field.key}:` : insertOf(cursor, field, quoteIfNeeded(typed)),
+  }
+}
+
+const insertOf = (cursor: Cursor, field: Field, value: string): string =>
+  `${cursor.prefix}${field.key}:${[...cursor.chosen, value].join(",")} `

@@ -5,9 +5,12 @@ import { columnsFor, type RowActions } from "../components/table/columns"
 import type { Sort } from "../components/table/deployments-table"
 import { resolve, showsDeleted } from "../query/apply"
 import { addValue, parse, upsertDirective } from "../query/grammar"
-import { buildSchema, defaultVisible, type Schema } from "../query/schema"
+import { buildSchema, defaultVisible, groupCandidates, type Schema } from "../query/schema"
+import { indexFieldAt, suggest } from "../query/suggest"
+import { contextFilters } from "../query/value-index"
 import { useFooterCounts } from "./use-footer-counts"
 import { useAllDeployments, useDeploymentWrites, useMatchedDeployments } from "../store/use-deployments"
+import { useScopeCounts, useValueIndex } from "../store/use-value-index"
 
 export const QUERY_INPUT_ID = "search"
 
@@ -22,15 +25,35 @@ export const useDeploymentsView = (query: string, onQueryChange: QueryChange) =>
   const schema = useMemo(() => buildSchema(rows), [rows])
   const [chosen, setChosen] = useState<ReadonlySet<string> | null>(null)
   const [fieldsOpen, setFieldsOpen] = useState(false)
+  const [caret, setCaret] = useState(query.length)
+  const [fieldSearch, setFieldSearch] = useState("")
 
   const visible = useMemo(() => chosen ?? new Set(defaultColumns(schema)), [chosen, schema])
   const resolved = useMemo(() => resolve(parse(query), schema), [query, schema])
   const settledQuery = useDeferredValue(query)
+  const settledCaret = useDeferredValue(caret)
   const settled = useMemo(() => resolve(parse(settledQuery), schema), [settledQuery, schema])
   const sort = settled.sort ?? DEFAULT_SORT
   const matched = useMatchedDeployments(settled, schema)
   const deletedScope = showsDeleted(settled.filters)
-  const total = useMemo(() => countInScope(rows, deletedScope), [rows, deletedScope])
+
+  const listedFields = useMemo(() => groupCandidates(schema), [schema])
+  const suggesting = useMemo(
+    () => indexFieldAt(settledQuery, settledCaret, schema),
+    [settledQuery, settledCaret, schema],
+  )
+  const suggestFilters = useMemo(
+    () => (suggesting ? contextFilters(settled.filters, suggesting, schema) : []),
+    [settled, suggesting, schema],
+  )
+  const index = useValueIndex(suggesting, suggestFilters, schema)
+  const scope = useScopeCounts()
+  const suggestions = useMemo(
+    () => suggest(settledQuery, settledCaret, schema, { index, deletedRows: scope.deleted }),
+    [settledQuery, settledCaret, schema, index, scope.deleted],
+  )
+
+  const total = deletedScope ? scope.deleted : scope.live
   const fields = useMemo(
     () => schema.fields.filter((field) => visible.has(field.key) || (field.key === "deleted" && deletedScope)),
     [schema, visible, deletedScope],
@@ -74,6 +97,7 @@ export const useDeploymentsView = (query: string, onQueryChange: QueryChange) =>
     [visible],
   )
   const onResetColumns = useCallback(() => setChosen(null), [])
+  const onFieldSearchChange = useCallback((next: string) => setFieldSearch(next), [])
   const onToggleFields = useCallback(() => setFieldsOpen((open) => !open), [])
   const columns = useMemo(
     () => columnsFor(schema, fields, hiddenAttributeKeys, actions),
@@ -95,6 +119,13 @@ export const useDeploymentsView = (query: string, onQueryChange: QueryChange) =>
     sort,
     actions,
     fieldsOpen,
+    suggestions,
+    queryFilters: settled.filters,
+    listedFields,
+    fieldSearch,
+    fieldSearchTerm: fieldSearch.trim().toLowerCase(),
+    onCaretChange: setCaret,
+    onFieldSearchChange,
     onSortChange,
     onGroupChange,
     onFilter,
@@ -107,6 +138,3 @@ export const useDeploymentsView = (query: string, onQueryChange: QueryChange) =>
 }
 
 const defaultColumns = (schema: Schema) => [...ALWAYS_VISIBLE, ...defaultVisible(schema)]
-
-const countInScope = (rows: readonly { deleted_at: string | null }[], deletedScope: boolean) =>
-  rows.reduce((count, row) => count + ((row.deleted_at !== null) === deletedScope ? 1 : 0), 0)

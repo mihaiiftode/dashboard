@@ -1,4 +1,4 @@
-import { coalesce, concat, eq, ilike, inArray, isNull, not, or } from "@tanstack/react-db"
+import { coalesce, concat, count, eq, ilike, inArray, isNull, not, or } from "@tanstack/react-db"
 import type { Token } from "./grammar"
 import type { Resolved } from "./apply"
 import { resolveKey, type Field, type Schema } from "./schema"
@@ -10,6 +10,8 @@ type StringReference = Parameters<typeof ilike>[0]
 type Builder = {
   where: (callback: (row: Row) => unknown) => Builder
   orderBy: (callback: (row: Row) => unknown, direction?: "asc" | "desc") => Builder
+  groupBy: (callback: (row: Row) => unknown) => Builder
+  select: (callback: (row: Row) => Record<string, unknown>) => Builder
   fn: { where: (callback: (row: Row) => boolean) => Builder }
 }
 
@@ -21,15 +23,37 @@ const GLOB = "*"
 export const DEFAULT_SORT = { key: "created", desc: true } as const
 
 export const compileQuery = <T extends Builder>(source: T, state: Resolved, schema: Schema): T => {
-  const withScope = source.where((row) => scopeClause(row, state.filters)) as T
-  const filtered = state.filters.reduce<T>((builder, token) => applyToken(builder, token, schema), withScope)
+  const filtered = compileFilters(source, state.filters, schema)
   const sort = state.sort ?? DEFAULT_SORT
   const field = resolveKey(schema, sort.key)
   if (!field) return filtered
   return filtered.orderBy((row) => readOf(row, field), sort.desc ? "desc" : "asc") as T
 }
 
-const scopeClause = (row: Row, filters: Token[]) => {
+export const compileValueIndex = <T extends Builder>(
+  source: T,
+  field: Field,
+  filters: readonly Token[],
+  schema: Schema,
+): T =>
+  compileFilters(source, filters, schema)
+    .groupBy((row) => readOf(row, field))
+    .select((row) => ({ value: readOf(row, field), rows: count(reference(row, "deployment_id")) })) as T
+
+export const compileScopeCounts = <T extends Builder>(source: T): T =>
+  source
+    .groupBy((row) => isNull(reference(row, "deleted_at")))
+    .select((row) => ({
+      live: isNull(reference(row, "deleted_at")),
+      rows: count(reference(row, "deployment_id")),
+    })) as T
+
+const compileFilters = <T extends Builder>(source: T, filters: readonly Token[], schema: Schema): T => {
+  const withScope = source.where((row) => scopeClause(row, filters)) as T
+  return filters.reduce<T>((builder, token) => applyToken(builder, token, schema), withScope)
+}
+
+const scopeClause = (row: Row, filters: readonly Token[]) => {
   const deleted = filters.some((token) => token.kind === "is" && token.value === "deleted" && !token.negated)
   const clause = isNull(reference(row, "deleted_at"))
   return deleted ? not(clause) : clause
