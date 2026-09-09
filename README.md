@@ -1,76 +1,116 @@
 # Deployments Dashboard
 
-## Background
+A dashboard for browsing, searching, editing, and recovering deployment records. The whole dataset lives in the browser, so filtering, sorting, and grouping never touch the network; writes go back over HTTP and every other open dashboard hears about them within a second.
 
-You're building an internal dashboard for a platform team. The system manages deployment records — each deployment has metadata and user-defined key-value attributes (like tags or labels). The platform has thousands of deployments across multiple teams.
+The original assignment is preserved at [docs/brief.md](docs/brief.md).
 
-## Tech Stack
+## Run it
 
-- **Frontend:** Next.js (React)
-- **Backend:** FastAPI (Python)
-- **Database:** MongoDB (provided via Docker Compose)
+Everything at once:
 
-## Getting Started
-
-1. Start MongoDB:
-   ```bash
-   docker compose up -d
-   ```
-
-2. Seed the database (~5,000 deployment records):
-   ```bash
-   cd seed
-   pip install -r requirements.txt
-   python seed.py
-   ```
-
-3. Build the dashboard.
-
-## Data Model
-
-A deployment record has the following shape:
-
-```json
-{
-  "deployment_id": "uuid",
-  "version": "1.4.12",
-  "status": "active | failed | stopped",
-  "type": "web_service | worker | cron_job",
-  "environment": "production | staging | development",
-  "attributes": {
-    "name": "checkout-api",
-    "team": "payments",
-    "region": "us-east-1"
-  },
-  "created_at": "2025-06-15T10:30:00Z",
-  "created_by": "jane@example.com"
-}
+```bash
+docker compose up -d          # mongo, api on :8000, web on :3000
+make seed                     # 5,000 deployments; make seed COUNT=50000 for ten times that
+open http://localhost:3000
 ```
 
-## Requirements
+Port 3000 taken? `WEB_PORT=3002 docker compose up -d`, and rebuild the web image so the browser bundle points at the API it will actually call.
 
-Build a dashboard that solves the following problems:
+Each side on its own, with Mongo from compose:
 
-### 1. The platform has ~5,000 deployments and growing. Users need to browse them efficiently.
+```bash
+docker compose up -d mongodb
+make api                      # uvicorn on :8000, reloading
+make web                      # next dev on :3000
+```
 
-### 2. Users need to find specific deployments quickly. They might search by ID, name, creator, or any attribute value. They also need to narrow results by status, type, and environment. All filtering and searching should feel instant — no round-trips to the server for every keystroke.
+API documentation is served from the running API: [/docs](http://localhost:8000/docs) for the interactive reference, [/openapi.json](http://localhost:8000/openapi.json) for the schema. Every endpoint, parameter, and error response carries a description.
 
-### 3. Users want to see results ordered by different fields — newest first, alphabetically by name, grouped by status, etc.
+## Environment
 
-### 4. Users frequently leave the dashboard and come back. Reloading all data every time is wasteful and slow.
+Copy `.env.example`. The API reads `API_`-prefixed variables, the browser bundle reads `NEXT_PUBLIC_API_URL` at build time.
 
-### 5. Deployment names and descriptions need to be editable directly from the list view — users shouldn't have to open each deployment to make quick label changes.
+| Variable | Default | Why you would change it |
+| --- | --- | --- |
+| `API_MONGO_URL` | `mongodb://localhost:27017` | Point at another database |
+| `API_DATABASE_NAME` | `deployments` | Run two datasets side by side |
+| `API_CORS_ORIGINS` | `["http://localhost:3000"]` | Serve the dashboard from another origin |
+| `API_LOG_FORMAT` | `plain` | `json` for structured logs |
+| `API_LOG_LEVEL` | `INFO` | `DEBUG` while chasing something |
+| `API_HEARTBEAT_SECONDS` | `15` | How often the change stream sends a keep-alive comment |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Where the browser sends writes |
+| `WEB_PORT` | `3000` | Publish the web container elsewhere |
 
-### 6. Each deployment has custom key-value attributes. Users need to view, add, edit, and remove these from a detail view.
+## Tests and checks
 
-### 7. Deleted deployments need to remain recoverable for 30 days. The dashboard should not show them by default, but the system must support restoring them.
+```bash
+make test        # 94 API tests on testcontainers Mongo, 187 web tests in jsdom
+make lint        # ruff, ty, oxlint, oxfmt, knip
+```
 
-### 8. Multiple team members may view the dashboard simultaneously. The data they see should not be significantly stale.
+Per side: `make test-api`, `make test-web`, `cd web && pnpm check`.
 
-## Evaluation Criteria
+The API's unit tests mock the repository interface; anything that needs a real database runs end to end against Mongo in a container, including the compare-and-set on writes and the server-sent event stream against a live uvicorn.
 
-- **API Design** — RESTful conventions, proper status codes, consistent response shapes, error handling
-- **Data Layer** — Query efficiency, proper indexing, how you model soft deletes and attributes
-- **Frontend Architecture** — State management, data flow, separation of concerns, caching/sync strategy
-- **UI/UX** — Functional table, responsive inline editing, sensible loading/error states. We're not judging visual design — no need for custom CSS beyond basic usability
-- **Code Quality** — Readable, well-structured, no over-engineering. We value simplicity over cleverness
+## Searching
+
+One input takes every query. Bare words match anywhere across identifier, version, creator, and every attribute value. Everything else is `key:value`.
+
+| You type | You get |
+| --- | --- |
+| `payments` | rows carrying that text anywhere |
+| `status:failed` | one facet value |
+| `status:failed,stopped` | either value |
+| `status:failed type:worker` | both conditions |
+| `-status:failed` | everything except |
+| `env:prod` | aliases resolve, so does `environment:production` |
+| `name:api-*` | glob against the whole value |
+| `created:<7d` | newer than, `created:>30d` for older |
+| `has:oncall` | rows carrying an attribute at all |
+| `is:deleted` | the trash, with days left per row; `-is:deleted` is the default scope |
+| `group:team` | group rows, expanded, header row per value |
+| `sort:name`, `sort:-created` | order, prefix `-` for descending |
+| `team:"release team"` | quote a value with a space, comma, or quote |
+
+The popup counts what each choice would leave given the other tokens. For a string field it leads with a matches-anywhere row that Enter never takes, so pressing Enter keeps what you typed. The query lives in the URL, so a search is a link.
+
+## How it works
+
+- The browser holds every deployment in RxDB over IndexedDB and reads it through TanStack DB live queries, so a reload resumes from a checkpoint instead of refetching ([ADR 0001](docs/adr/0001-rxdb-replication-under-tanstack-db.md)).
+- Deleted rows stay ordinary documents locally so the trash scope is a query, not a second store ([ADR 0002](docs/adr/0002-deleted-deployments-stay-in-the-client-collection.md)).
+- Writes are compare-and-set on a monotonic `revision`, which is also the ETag. A stale write answers 412 with the winning document, and the client adopts it and says which value survived.
+- Every successful write fans out over server-sent events. A dropped connection resyncs from the client's own checkpoint, and the footer says live, reconnecting, or offline.
+- The frontend is one feature module behind a single public barrel, with thin routes and a container hook as the only seam to the store ([ADR 0003](docs/adr/0003-feature-module-frontend-architecture.md), [CODING_STANDARDS.md](CODING_STANDARDS.md)).
+
+## Measured behaviour
+
+Production build, real API, headless Chrome at 1600x900, real key events 90ms apart, latency from Chrome event timing which rounds to 8ms. Typing starts only once replication has settled, so these are steady-state numbers.
+
+| | 5,000 deployments | 50,000 deployments |
+| --- | --- | --- |
+| Keystroke to paint | 16ms median, 16ms p95 | one settle window, see below |
+| Keystroke handler | 2ms median | 2ms median |
+| Suggestion computed | 0.002ms median | 0.002ms median |
+| List requests while typing | 0 | 0 |
+
+Suggestion counts come from incremental per-field indexes, so they are flat in dataset size. The row list is different: each keystroke changes the filter, and rebuilding a TanStack DB pipeline re-ingests every row, measured at 186ms to 277ms per rebuild at 50,000 rows against 2ms for the same filter as a plain pass. The table therefore updates 120ms after the last keystroke rather than on every one, which keeps the suggestion popup and the token chips at one frame while the row list stays off the typing path. Replacing that pipeline rebuild with a plain filter is the next performance ticket.
+
+## Scale limits
+
+- The dataset is held in the browser, so memory and initial replication bound it. 5,000 rows replicate in a few seconds; 50,000 take a few minutes over pages of 1,000 and roughly 200MB of IndexedDB.
+- Above about 50,000 rows the row query needs the plain-filter path described above; suggestions, counts, and coverage already scale.
+- Deleted rows are swept by a TTL index 30 days after deletion, and the client hides anything past that window without waiting for the sweep.
+- The change stream is in-process, so it fans out to clients of one API instance. More than one instance needs a shared broker.
+
+## Where the requirements landed
+
+| Brief | Where |
+| --- | --- |
+| Browse thousands efficiently | virtualized table, keyset pull replication |
+| Instant search and filtering | one query grammar over local live queries, incremental suggestion counts |
+| Ordering and grouping | `sort:` and `group:` directives, header rows per group |
+| Coming back without refetching | RxDB checkpoint resume over IndexedDB |
+| Inline editing from the list | every cell edits in place, optimistic with a pending indicator |
+| Custom attributes | packed attributes column with a validating popover |
+| 30 day recovery | soft delete, `is:deleted` scope, restore, TTL index |
+| Multiple viewers | server-sent change stream with resync on reconnect |

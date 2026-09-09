@@ -10,7 +10,7 @@ import { TableSkeleton } from "../components/table-skeleton"
 import { FieldsToggle } from "../components/view-controls"
 import { QUERY_INPUT_ID, useDeploymentsView, type QueryChange } from "../hooks/use-deployments-view"
 import { useSlashFocus } from "../hooks/use-slash-focus"
-import { useDeploymentsStoreState } from "../store/store-context"
+import { useStoreBoundary } from "../hooks/use-store-boundary"
 
 export type DeploymentsPageProps = {
   query: string
@@ -18,15 +18,15 @@ export type DeploymentsPageProps = {
 }
 
 export const DeploymentsPage = (props: DeploymentsPageProps) => {
-  const state = useDeploymentsStoreState()
+  const boundary = useStoreBoundary()
   return (
     <FeatureBoundary
-      loading={state.status === "loading"}
-      error={state.status === "error" ? state.error : null}
+      loading={boundary.loading}
+      error={boundary.error}
       pending={<TableSkeleton />}
-      onRetry={state.retry}
+      onRetry={boundary.onRetry}
     >
-      {state.status === "ready" ? <DeploymentsBrowser {...props} /> : null}
+      {boundary.ready ? <DeploymentsBrowser {...props} /> : null}
     </FeatureBoundary>
   )
 }

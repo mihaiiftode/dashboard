@@ -1,6 +1,6 @@
-import { coalesce, concat, count, eq, ilike, inArray, isNull, not, or } from "@tanstack/react-db"
+import { coalesce, concat, count, eq, gt, ilike, inArray, isNull, not, or } from "@tanstack/react-db"
 import type { Token } from "./grammar"
-import type { Resolved } from "./apply"
+import { showsDeleted, type Resolved } from "./resolve"
 import { RETENTION_DAYS } from "@/lib/format"
 import { resolveKey, type Field, type Schema } from "./schema"
 
@@ -51,17 +51,13 @@ export const compileScopeCounts = <T extends Builder>(source: T): T =>
 
 const compileFilters = <T extends Builder>(source: T, filters: readonly Token[], schema: Schema): T => {
   const withScope = source.where((row) => scopeClause(row, filters)) as T
-  const scoped = showsDeleted(filters) ? (withScope.fn.where(withinRetention) as T) : withScope
+  const scoped = showsDeleted(filters) ? (withScope.where(retentionClause) as T) : withScope
   return filters.reduce<T>((builder, token) => applyToken(builder, token, schema), scoped)
 }
 
-const showsDeleted = (filters: readonly Token[]): boolean =>
-  filters.some((token) => token.kind === "is" && token.value === "deleted" && !token.negated)
+const retentionClause = (row: Row): Expression => gt(reference(row, "deleted_at") as StringReference, retentionCutoff())
 
-const withinRetention = (row: Row): boolean => {
-  const deletedAt = rowOf(row).deleted_at
-  return deletedAt !== null && Date.now() - new Date(deletedAt).getTime() < RETENTION_DAYS * DAY_MS
-}
+const retentionCutoff = (): string => new Date(Date.now() - RETENTION_DAYS * DAY_MS).toISOString()
 
 const scopeClause = (row: Row, filters: readonly Token[]) => {
   const clause = isNull(reference(row, "deleted_at"))

@@ -110,11 +110,22 @@ export const DeploymentsTable = memo(
     }, [firstIndex, lastIndex, leafOrdinals, tableRows, onRangeChange])
 
     return (
-      <div ref={setScrollElement} data-slot="table-scroller" className="relative min-h-0 flex-1 overflow-auto">
-        <Table className="grid" style={{ minWidth: `${Math.max(1000, fields.length * 130)}px` }}>
+      <div
+        ref={setScrollElement}
+        data-slot="table-scroller"
+        role="region"
+        tabIndex={0}
+        aria-label="Deployments"
+        className="relative min-h-0 flex-1 overflow-auto focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none [&_[data-slot=table-container]]:overflow-visible"
+      >
+        <Table
+          className="grid"
+          aria-rowcount={tableRows.length + 1}
+          style={{ minWidth: `${Math.max(1000, fields.length * 130)}px` }}
+        >
           <TableHeader className="sticky top-0 z-10 grid bg-card">
             {table.getHeaderGroups().map((group) => (
-              <TableRow key={group.id} className="grid" style={{ gridTemplateColumns: grid }}>
+              <TableRow key={group.id} aria-rowindex={1} className="grid" style={{ gridTemplateColumns: grid }}>
                 {group.headers.map((header) => {
                   const sorted = header.column.getIsSorted()
                   const canSort = header.column.getCanSort()
@@ -152,6 +163,7 @@ export const DeploymentsTable = memo(
                   <TableRow
                     key={row.id}
                     data-index={item.index}
+                    aria-rowindex={item.index + 2}
                     className="absolute grid w-full items-center bg-muted/60 hover:bg-muted/60"
                     style={style}
                   >
@@ -169,6 +181,7 @@ export const DeploymentsTable = memo(
                 <TableRow
                   key={row.id}
                   data-index={item.index}
+                  aria-rowindex={item.index + 2}
                   className={cn("absolute grid w-full items-center", groupField && "pl-6")}
                   style={style}
                 >

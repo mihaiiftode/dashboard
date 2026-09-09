@@ -2,7 +2,7 @@ import { createCollection, createLiveQueryCollection, localOnlyCollectionOptions
 import { describe, expect, it } from "vitest"
 import { deletedDaysAgo, deployment, deployments } from "@/test/deployments"
 import type { Deployment } from "../store/schema"
-import { resolve } from "./apply"
+import { resolve } from "./resolve"
 import { compileValueIndex } from "./compile"
 import { parse } from "./grammar"
 import { buildSchema, resolveKey, type Schema } from "./schema"

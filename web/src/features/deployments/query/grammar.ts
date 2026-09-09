@@ -17,6 +17,10 @@ export function splitTokens(query: string): Span[] {
     const start = i
     let inQuote = false
     while (i < query.length && (inQuote || query[i] !== " ")) {
+      if (query[i] === "\\" && query[i + 1] !== undefined) {
+        i += 2
+        continue
+      }
       if (query[i] === '"') inQuote = !inQuote
       i++
     }
@@ -26,7 +30,7 @@ export function splitTokens(query: string): Span[] {
 }
 
 function unquote(s: string): string {
-  return s.replace(/^"([\s\S]*)"$/, "$1")
+  return s.replace(/^"([\s\S]*)"$/, "$1").replace(/\\(["\\])/g, "$1")
 }
 
 export function parseToken(raw: string): Token {

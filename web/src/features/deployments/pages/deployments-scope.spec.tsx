@@ -1,5 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
+import { StatusFooter } from "@/components/shell/footer-status"
+import type { Deployment } from "@/features/deployments/store/schema"
 import { deletedDaysAgo, deployment, deployments } from "@/test/deployments"
 import { renderWithProviders } from "@/test/render"
 import { setupUser } from "@/test/user"
@@ -16,8 +18,26 @@ const showsRow = async (name: string) =>
 
 const open = async (query: string, rows = deployments(6)) => {
   const user = setupUser()
-  const rendered = renderWithProviders(<DeploymentsPage query={query} onQueryChange={noop} />, { rows })
+  const rendered = renderWithProviders(
+    <>
+      <DeploymentsPage query={query} onQueryChange={noop} />
+      <StatusFooter />
+    </>,
+    { rows },
+  )
   return { user, table: await findTable(), ...rendered }
+}
+
+const openEmpty = async (query: string, rows: Deployment[]) => {
+  const rendered = renderWithProviders(
+    <>
+      <DeploymentsPage query={query} onQueryChange={noop} />
+      <StatusFooter />
+    </>,
+    { rows },
+  )
+  await screen.findByText("No deployments match", undefined, { timeout: 5000 })
+  return rendered
 }
 
 describe("deleting and restoring", () => {
@@ -85,4 +105,30 @@ describe("deleting and restoring", () => {
     },
     TWO_ROUND_TRIPS,
   )
+
+  it(
+    "shows a deletion that arrives while the deleted scope is open",
+    async () => {
+      const rows = deployments(4)
+      const { api } = await openEmpty("is:deleted", rows)
+
+      api.emit([{ ...rows[0], deleted_at: deletedDaysAgo(1), revision: 4 }])
+
+      await waitFor(() => expect(screen.getByRole("status", { name: "Matched deployments" })).toHaveTextContent("1"))
+      await showsRow("service-000")
+    },
+    TWO_ROUND_TRIPS,
+  )
+
+  it("groups by an attribute that has no column of its own", async () => {
+    const rows = [
+      deployment(0, { attributes: { cost_centre: "cc-42" } }),
+      deployment(1, { attributes: { cost_centre: "cc-42" } }),
+      ...deployments(10).slice(2),
+    ]
+    const { table } = await open("group:cost_centre", rows)
+
+    expect(within(table).getByText("cc-42")).toBeVisible()
+    expect(within(table).getAllByRole("button", { name: /collapse group/i }).length).toBeGreaterThan(0)
+  })
 })

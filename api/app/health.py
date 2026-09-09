@@ -26,7 +26,13 @@ def get_health_check(request: Request) -> HealthCheck:
     return request.app.state.health_check
 
 
-@router.get("/health")
+@router.get(
+    "/health",
+    tags=["health"],
+    summary="Report whether the API can reach its database",
+    description="Answers 200 when a database ping succeeds and 503 when it does not.",
+    responses={503: {"description": "The database did not answer a ping"}},
+)
 async def health(
     check: Annotated[HealthCheck, Depends(get_health_check)],
 ) -> dict[str, str]:

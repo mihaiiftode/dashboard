@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest"
-import { addValue, parse, parseToken, removeToken, replaceSpan, spanAt, splitTokens, upsertDirective } from "./grammar"
+import {
+  addValue,
+  parse,
+  parseToken,
+  quoteIfNeeded,
+  removeToken,
+  replaceSpan,
+  spanAt,
+  splitTokens,
+  upsertDirective,
+} from "./grammar"
 
 describe("splitTokens", () => {
   it("splits on spaces and keeps quoted runs together", () => {
@@ -141,5 +151,17 @@ describe("addValue", () => {
 
   it("writes a negated token when asked", () => {
     expect(addValue("", "status", "failed", true)).toBe("-status:failed")
+  })
+
+  it("round trips a value the quoter had to escape", () => {
+    const raw = `name:${quoteIfNeeded('say "hi" now')}`
+
+    expect(splitTokens(raw)).toHaveLength(1)
+    expect(parse(raw)[0]).toMatchObject({ kind: "field", values: ['say "hi" now'] })
+  })
+
+  it("round trips values carrying a space or a comma", () => {
+    expect(parse(`team:${quoteIfNeeded("release team")}`)[0]).toMatchObject({ values: ["release team"] })
+    expect(parse(`team:${quoteIfNeeded("a,b")}`)[0]).toMatchObject({ values: ["a,b"] })
   })
 })

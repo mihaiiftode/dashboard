@@ -81,6 +81,10 @@ export const createDeploymentsStore = async ({
     },
   })
   const replication = replicate(rxCollection, api, pullBatchSize, tracker, stream$)
+  const failures = replication.error$.subscribe((error) => {
+    log.warning("replication error: {message}", { message: String(error?.message ?? error) })
+    tracker.connectionChanged(navigator.onLine ? "reconnecting" : "offline")
+  })
   const collection = createCollection(
     rxdbCollectionOptions({ rxCollection, schema: deploymentSchema }),
   ) as unknown as DeploymentsCollection
@@ -96,6 +100,7 @@ export const createDeploymentsStore = async ({
     },
     destroy: async () => {
       unsubscribe()
+      failures.unsubscribe()
       stream$.complete()
       await replication.cancel()
       await database.close()

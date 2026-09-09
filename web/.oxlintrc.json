@@ -8,13 +8,24 @@
   },
   "rules": {
     "no-console": "error",
-    "no-underscore-dangle": ["error", { "allow": ["_deleted"] }],
+    "no-underscore-dangle": [
+      "error",
+      {
+        "allow": ["_deleted"]
+      }
+    ],
     "typescript/no-explicit-any": "error",
     "typescript/no-non-null-assertion": "error",
     "react/react-in-jsx-scope": "off",
     "react/incompatible-library": "off",
     "import/no-unassigned-import": "off",
-    "jsx-a11y/prefer-tag-over-role": "off"
+    "jsx-a11y/prefer-tag-over-role": "off",
+    "jsx-a11y/no-noninteractive-tabindex": [
+      "error",
+      {
+        "roles": ["tabpanel", "region"]
+      }
+    ]
   },
   "overrides": [
     {

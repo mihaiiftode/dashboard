@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react"
+import { screen, waitFor, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { StatusFooter } from "@/components/shell/footer-status"
 import { deletedDaysAgo, deployment, deployments } from "@/test/deployments"
@@ -52,9 +52,8 @@ describe("DeploymentsPage", () => {
 
     rerender(<DeploymentsPage query="is:deleted" onQueryChange={noop} />)
 
-    const deletedScope = await findTable()
-    expect(within(deletedScope).getByText("service-001")).toBeVisible()
-    expect(within(deletedScope).queryByText("service-000")).toBeNull()
+    await waitFor(() => expect(within(screen.getByRole("table")).getByText("service-001")).toBeInTheDocument())
+    expect(within(screen.getByRole("table")).queryByText("service-000")).toBeNull()
   })
 
   it("renders a destructive chip with a tooltip for an invalid token and ignores it", async () => {

@@ -3,12 +3,13 @@
 import { useCallback, useDeferredValue, useMemo, useState } from "react"
 import { columnsFor, type RowActions } from "../components/table/columns"
 import type { Sort } from "../components/table/deployments-table"
-import { resolve, showsDeleted } from "../query/apply"
+import { resolve, showsDeleted } from "../query/resolve"
 import { addValue, parse, upsertDirective } from "../query/grammar"
 import { buildSchema, defaultVisible, groupCandidates, type Schema } from "../query/schema"
 import { indexFieldAt, suggest } from "../query/suggest"
 import { contextFilters } from "../query/value-index"
 import { useFooterCounts } from "./use-footer-counts"
+import { useSettledValue } from "./use-settled-value"
 import { useAllDeployments, useDeploymentWrites, useMatchedDeployments } from "../store/use-deployments"
 import { useSyncStatus } from "../store/use-sync-status"
 import { useScopeCounts, useValueIndex } from "../store/use-value-index"
@@ -17,6 +18,7 @@ export const QUERY_INPUT_ID = "search"
 
 const ALWAYS_VISIBLE = ["name", "description"]
 const DEFAULT_SORT: Sort = { key: "created", desc: true }
+const DATA_SETTLE_MS = 120
 
 export type QueryChange = (next: string | ((previous: string) => string)) => void
 
@@ -34,7 +36,8 @@ export const useDeploymentsView = (query: string, onQueryChange: QueryChange) =>
   const resolved = useMemo(() => resolve(parse(query), schema), [query, schema])
   const settledQuery = useDeferredValue(query)
   const settledCaret = useDeferredValue(caret)
-  const settled = useMemo(() => resolve(parse(settledQuery), schema), [settledQuery, schema])
+  const dataQuery = useSettledValue(query, DATA_SETTLE_MS)
+  const settled = useMemo(() => resolve(parse(dataQuery), schema), [dataQuery, schema])
   const sort = settled.sort ?? DEFAULT_SORT
   const matched = useMatchedDeployments(settled, schema)
   const deletedScope = showsDeleted(settled.filters)
@@ -56,11 +59,18 @@ export const useDeploymentsView = (query: string, onQueryChange: QueryChange) =>
   )
 
   const total = deletedScope ? scope.deleted : scope.live
+  const group = settled.group
   const fields = useMemo(
-    () => schema.fields.filter((field) => visible.has(field.key) || (field.key === "deleted" && deletedScope)),
-    [schema, visible, deletedScope],
+    () =>
+      schema.fields.filter(
+        (field) => visible.has(field.key) || field.key === group || (field.key === "deleted" && deletedScope),
+      ),
+    [schema, visible, group, deletedScope],
   )
-  const hiddenAttributeKeys = useMemo(() => schema.attributeKeys.filter((key) => !visible.has(key)), [schema, visible])
+  const hiddenAttributeKeys = useMemo(
+    () => schema.attributeKeys.filter((key) => !visible.has(key) && key !== group),
+    [schema, visible, group],
+  )
 
   const actions = useMemo<RowActions>(
     () => ({
@@ -117,7 +127,7 @@ export const useDeploymentsView = (query: string, onQueryChange: QueryChange) =>
     hasAttributesColumn: hiddenAttributeKeys.length > 0,
     visible,
     invalid: resolved.invalid,
-    group: settled.group,
+    group,
     sort,
     actions,
     fieldsOpen,

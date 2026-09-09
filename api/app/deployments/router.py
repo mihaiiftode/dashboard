@@ -9,6 +9,7 @@ from fastapi import (
     FastAPI,
     Header,
     HTTPException,
+    Path,
     Query,
     Request,
     Response,
@@ -40,6 +41,17 @@ from app.errors import Problem, problem_response
 from app.settings import Settings
 
 router = APIRouter(prefix="/v1/deployments", tags=["deployments"])
+
+PROBLEM = {
+    "content": {"application/problem+json": {"schema": Problem.model_json_schema()}}
+}
+
+
+def problem(description: str) -> dict[str, object]:
+    return {**PROBLEM, "description": description}
+
+
+DeploymentId = Annotated[UUID, Path(description="Identifier of the deployment")]
 
 
 def get_service(request: Request) -> DeploymentService:
@@ -80,6 +92,7 @@ def get_checkpoint(
         "so clients can scope them, plus the checkpoint to resume from while more remain."
     ),
     response_model=DeploymentPage,
+    responses={422: problem("The limit or the checkpoint parameters are out of range")},
 )
 async def list_deployments(
     service: Annotated[DeploymentService, Depends(get_service)],
@@ -99,6 +112,12 @@ async def list_deployments(
         "checkpoint to resume from. Comment frames keep the connection warm."
     ),
     response_class=EventSourceResponse,
+    responses={
+        200: {
+            "content": {"text/event-stream": {}},
+            "description": "A stream of change events",
+        }
+    },
 )
 async def stream_changes(
     feed: Annotated[ChangeFeed, Depends(get_change_feed)],
@@ -137,9 +156,10 @@ def get_precondition(
     summary="Read one deployment",
     description="Returns the deployment and the ETag a later write can use as If-Match.",
     response_model=Deployment,
+    responses={404: problem("No deployment carries that identifier")},
 )
 async def get_deployment(
-    deployment_id: UUID,
+    deployment_id: DeploymentId,
     service: Annotated[DeploymentService, Depends(get_service)],
     response: Response,
 ) -> Deployment:
@@ -157,9 +177,23 @@ async def get_deployment(
         "deployments are read only."
     ),
     response_model=Deployment,
+    responses={
+        400: problem("If-Match is not a version tag from an earlier response"),
+        404: problem("No deployment carries that identifier"),
+        409: problem(
+            "The deployment is deleted and cannot be edited until it is restored"
+        ),
+        412: {
+            "content": {"application/json": {"schema": Deployment.model_json_schema()}},
+            "description": "The deployment moved on; the body is the version that won",
+        },
+        422: problem(
+            "A field or an attribute breaks a rule; errors carries one entry per key"
+        ),
+    },
 )
 async def replace_deployment(
-    deployment_id: UUID,
+    deployment_id: DeploymentId,
     writable: Writable,
     service: Annotated[DeploymentService, Depends(get_service)],
     if_revision: Annotated[int | None, Depends(get_precondition)],
@@ -178,9 +212,12 @@ async def replace_deployment(
         "removes it for good after the retention window."
     ),
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        404: problem("No deployment carries that identifier, or it is already deleted")
+    },
 )
 async def delete_deployment(
-    deployment_id: UUID,
+    deployment_id: DeploymentId,
     service: Annotated[DeploymentService, Depends(get_service)],
 ) -> Response:
     deleted = await service.delete(deployment_id)
@@ -195,9 +232,13 @@ async def delete_deployment(
     summary="Restore a deleted deployment",
     description="Returns the deployment to the default scope with every field it had.",
     response_model=Deployment,
+    responses={
+        404: problem("No deployment carries that identifier"),
+        409: problem("The deployment is not deleted, so there is nothing to restore"),
+    },
 )
 async def restore_deployment(
-    deployment_id: UUID,
+    deployment_id: DeploymentId,
     service: Annotated[DeploymentService, Depends(get_service)],
     response: Response,
 ) -> Deployment:
