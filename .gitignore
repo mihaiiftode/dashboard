@@ -1,0 +1,13 @@
+.scratch/
+docs/agents/
+CLAUDE.md
+.agents/
+.claude/
+skills-lock.json
+research.md
+.DS_Store
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/

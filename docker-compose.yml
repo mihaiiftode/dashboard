@@ -1,0 +1,40 @@
+services:
+  mongodb:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: deployments
+
+  api:
+    build: ./api
+    ports:
+      - "8000:8000"
+    environment:
+      API_MONGO_URL: mongodb://mongodb:27017
+      API_DATABASE_NAME: ${API_DATABASE_NAME:-deployments}
+      API_CORS_ORIGINS: '["http://localhost:${WEB_PORT:-3000}"]'
+      API_LOG_FORMAT: ${API_LOG_FORMAT:-plain}
+      API_LOG_LEVEL: ${API_LOG_LEVEL:-INFO}
+      API_MONGO_TIMEOUT_MS: ${API_MONGO_TIMEOUT_MS:-2000}
+    volumes:
+      - ./api/app:/app/app
+    depends_on:
+      - mongodb
+
+  web:
+    build: ./web
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    volumes:
+      - ./web/src:/app/src
+      - ./web/public:/app/public
+    depends_on:
+      - api
+
+volumes:
+  mongodb_data:

@@ -1,0 +1,20 @@
+[project]
+name = "deployments-api"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.141.1",
+    "pydantic-settings>=2.15.0",
+    "pymongo>=4.13",
+    "uvicorn[standard]>=0.52.4",
+]
+
+[dependency-groups]
+dev = [
+    "anyio>=4.15.1",
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+    "ruff>=0.16.6",
+    "testcontainers[mongodb]>=4.15.0",
+    "ty>=0.0.79",
+]
