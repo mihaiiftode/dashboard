@@ -1,5 +1,5 @@
 import { ApiError } from "@/lib/api/http"
-import type { DeploymentsApi, ListRequest, ReplaceOutcome, ReplaceRequest } from "./api"
+import type { ChangeListeners, DeploymentsApi, ListRequest, ReplaceOutcome, ReplaceRequest } from "./api"
 import type { Checkpoint, Deployment, DeploymentPage } from "./schema"
 
 const NOT_FOUND = 404
@@ -13,6 +13,10 @@ export type FakeDeploymentsApi = DeploymentsApi & {
   store: (row: Deployment) => void
   rowFor: (id: string) => Deployment | undefined
   holdWrites: () => () => void
+  connect: () => void
+  emit: (documents: Deployment[]) => void
+  drop: () => void
+  subscribers: number
 }
 
 export const createFakeDeploymentsApi = (initial: Deployment[] = []): FakeDeploymentsApi => {
@@ -23,6 +27,7 @@ export const createFakeDeploymentsApi = (initial: Deployment[] = []): FakeDeploy
     rows = [...rows.filter((current) => current.deployment_id !== row.deployment_id), row]
   }
   let held: Promise<void> | null = null
+  const listeners = new Set<ChangeListeners>()
   return {
     requests,
     writes,
@@ -31,6 +36,30 @@ export const createFakeDeploymentsApi = (initial: Deployment[] = []): FakeDeploy
     },
     store: put,
     rowFor: (id) => rows.find((row) => row.deployment_id === id),
+    subscribe: (change) => {
+      listeners.add(change)
+      return () => listeners.delete(change)
+    },
+    connect: () => {
+      for (const listener of listeners) listener.onOpen()
+    },
+    drop: () => {
+      for (const listener of listeners) listener.onError()
+    },
+    emit: (documents) => {
+      const last = documents.at(-1)
+      if (!last) return
+      for (const document of documents) put(document)
+      for (const listener of listeners) {
+        listener.onEvent({
+          documents,
+          checkpoint: { updated_at: last.updated_at, deployment_id: last.deployment_id },
+        })
+      }
+    },
+    get subscribers() {
+      return listeners.size
+    },
     holdWrites: () => {
       let release = () => undefined as void
       held = new Promise<void>((resolve) => {

@@ -131,6 +131,20 @@ class DeploymentPage(BaseModel):
     checkpoint: Checkpoint | None = None
 
 
+class ChangeEvent(BaseModel):
+    documents: list[Deployment]
+    checkpoint: Checkpoint
+
+    @classmethod
+    def for_one(cls, changed: Deployment) -> "ChangeEvent":
+        return cls(
+            documents=[changed],
+            checkpoint=Checkpoint(
+                updated_at=changed.updated_at, deployment_id=changed.deployment_id
+            ),
+        )
+
+
 class Writable(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

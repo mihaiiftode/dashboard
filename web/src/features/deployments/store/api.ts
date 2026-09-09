@@ -1,7 +1,9 @@
 import { ApiError, requestJson, type Fetcher } from "@/lib/api/http"
 import {
+  changeEventSchema,
   deploymentPageSchema,
   deploymentSchema,
+  type ChangeEvent,
   type Checkpoint,
   type Deployment,
   type DeploymentPage,
@@ -27,15 +29,23 @@ export type ReplaceOutcome = {
   deployment: Deployment
 }
 
+export type ChangeListeners = {
+  onEvent: (event: ChangeEvent) => void
+  onOpen: () => void
+  onError: () => void
+}
+
 export type DeploymentsApi = {
   list: (request: ListRequest) => Promise<DeploymentPage>
   get: (id: string) => Promise<Deployment>
   replace: (request: ReplaceRequest) => Promise<ReplaceOutcome>
+  subscribe: (listeners: ChangeListeners) => () => void
 }
 
 export const createFetchDeploymentsApi = (baseUrl: string, fetcher: Fetcher = globalThis.fetch): DeploymentsApi => ({
   list: ({ after, limit }) => requestJson(fetcher, listUrl(baseUrl, after, limit), deploymentPageSchema),
   get: (id) => requestJson(fetcher, oneUrl(baseUrl, id), deploymentSchema),
+  subscribe: subscribeWithEventSource(baseUrl),
   replace: async ({ id, writable, expectedRevision }) => {
     try {
       const deployment = await requestJson(fetcher, oneUrl(baseUrl, id), deploymentSchema, {
@@ -52,6 +62,21 @@ export const createFetchDeploymentsApi = (baseUrl: string, fetcher: Fetcher = gl
     }
   },
 })
+
+const subscribeWithEventSource =
+  (baseUrl: string) =>
+  ({ onEvent, onOpen, onError }: ChangeListeners) => {
+    const source = new EventSource(eventsUrl(baseUrl))
+    source.onopen = () => onOpen()
+    source.onerror = () => onError()
+    source.onmessage = (message: MessageEvent<string>) => {
+      const parsed = changeEventSchema.safeParse(JSON.parse(message.data))
+      if (parsed.success) onEvent(parsed.data)
+    }
+    return () => source.close()
+  }
+
+const eventsUrl = (baseUrl: string): string => new URL("/v1/deployments/events", baseUrl).toString()
 
 const ifMatch = (revision: number | null): Record<string, string> =>
   revision === null ? {} : { "if-match": `"${revision}"` }

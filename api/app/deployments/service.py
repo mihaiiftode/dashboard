@@ -2,6 +2,7 @@ import logging
 from datetime import UTC, datetime
 from uuid import UUID
 
+from app.deployments.change_feed import ChangePublisher
 from app.deployments.models import (
     Attributes,
     Checkpoint,
@@ -40,8 +41,11 @@ class InvalidAttribute(Exception):
 
 
 class DeploymentService:
-    def __init__(self, repository: DeploymentRepository) -> None:
+    def __init__(
+        self, repository: DeploymentRepository, changes: ChangePublisher
+    ) -> None:
         self._repository = repository
+        self._changes = changes
 
     async def list_page(self, after: Checkpoint | None, limit: int) -> DeploymentPage:
         found = await self._repository.list_page(after=after, limit=limit + 1)
@@ -82,6 +86,7 @@ class DeploymentService:
         written = await self._repository.replace(edited, if_revision=if_revision)
         if written is not None:
             logger.info("replaced deployment %s", deployment_id)
+            await self._changes.publish(written)
             return written
         logger.warning("stale write rejected for deployment %s", deployment_id)
         raise StaleWrite(await self.get(deployment_id))

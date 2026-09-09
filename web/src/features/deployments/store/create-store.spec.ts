@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest"
-import { deployments } from "@/test/deployments"
+import { deployment, deployments } from "@/test/deployments"
 import { createFakeDeploymentsApi } from "./fake-api"
 import { createDeploymentsStore, type DeploymentsStore } from "./create-store"
 import type { Deployment } from "./schema"
@@ -157,5 +157,67 @@ describe("createDeploymentsStore", () => {
     await settle(current)
 
     expect([...current.sync.snapshot().pendingIds]).toEqual([])
+  })
+
+  it("applies a change that arrives on the stream", async () => {
+    const rows = deployments(2)
+    const { api, store: current } = await storeOver(rows)
+
+    api.emit([{ ...rows[0], attributes: { ...rows[0].attributes, name: "from-elsewhere" }, revision: 4 }])
+    await settle(current)
+
+    expect(rowIn(current, rows[0].deployment_id)?.attributes.name).toBe("from-elsewhere")
+    expect(rowIn(current, rows[0].deployment_id)?.revision).toBe(4)
+  })
+
+  it("takes a deployment nobody has seen before off the stream", async () => {
+    const rows = deployments(2)
+    const { api, store: current } = await storeOver(rows)
+    const arrival = deployment(50)
+
+    api.emit([arrival])
+    await settle(current)
+
+    expect(idsIn(current)).toContain(arrival.deployment_id)
+  })
+
+  it("catches up from its checkpoint after the connection drops", async () => {
+    const rows = deployments(2)
+    const { api, store: current } = await storeOver(rows)
+    const missed = deployment(60)
+    api.store(missed)
+    const requestsBeforeDrop = api.requests.length
+
+    api.drop()
+    await settle(current)
+
+    expect(api.requests.length).toBeGreaterThan(requestsBeforeDrop)
+    expect(idsIn(current)).toContain(missed.deployment_id)
+  })
+
+  it("reports the connection state the footer shows", async () => {
+    const { api, store: current } = await storeOver(deployments(1))
+
+    api.connect()
+    expect(current.sync.snapshot().connection).toBe("live")
+
+    api.drop()
+    expect(current.sync.snapshot().connection).toBe("reconnecting")
+  })
+
+  it("leaves the collection unchanged when a write comes back on the stream", async () => {
+    const rows = deployments(2)
+    const { api, store: current } = await storeOver(rows)
+    current.collection.update(rows[0].deployment_id, (draft) => {
+      draft.attributes.name = "mine"
+    })
+    await settle(current)
+    const afterWrite = rowIn(current, rows[0].deployment_id)
+
+    api.emit([api.rowFor(rows[0].deployment_id) as Deployment])
+    await settle(current)
+
+    expect(rowIn(current, rows[0].deployment_id)).toEqual(afterWrite)
+    expect(api.writes).toHaveLength(1)
   })
 })

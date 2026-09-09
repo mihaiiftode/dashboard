@@ -15,7 +15,7 @@ describe("AppShell", () => {
     expect(within(screen.getByRole("banner")).getByRole("link", { name: "Deployments" })).toBeVisible()
     expect(within(main).getByText("page body")).toBeVisible()
     const footer = screen.getByRole("contentinfo")
-    expect(within(footer).getByRole("status")).toHaveTextContent("—")
+    expect(within(footer).getByRole("status", { name: "Matched deployments" })).toHaveTextContent("—")
     expect(within(footer).getByText("connecting")).toBeVisible()
   })
 

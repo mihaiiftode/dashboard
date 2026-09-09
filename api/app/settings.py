@@ -14,3 +14,4 @@ class Settings(BaseSettings):
     log_format: Literal["json", "plain"] = "plain"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     mongo_timeout_ms: int = 2000
+    heartbeat_seconds: float = 15.0

@@ -115,7 +115,7 @@ describe("DeploymentsPage", () => {
 
     await findTable()
     const footer = screen.getByRole("contentinfo")
-    expect(within(footer).getByRole("status")).toHaveTextContent("3")
+    expect(within(footer).getByRole("status", { name: "Matched deployments" })).toHaveTextContent("3")
   })
   it("shows a hidden attribute column when its column toggle is pressed in the fields panel", async () => {
     const user = setupUser()

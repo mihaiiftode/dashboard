@@ -1,3 +1,4 @@
+from collections.abc import AsyncGenerator
 from datetime import datetime
 from typing import Annotated
 from uuid import UUID
@@ -14,9 +15,12 @@ from fastapi import (
     status,
 )
 from fastapi.responses import JSONResponse
+from sse_starlette import EventSourceResponse
 
+from app.deployments.change_feed import ChangeFeed
 from app.deployments.models import (
     DEFAULT_LIMIT,
+    ChangeEvent,
     Checkpoint,
     Deployment,
     DeploymentPage,
@@ -32,12 +36,21 @@ from app.deployments.service import (
     StaleWrite,
 )
 from app.errors import Problem, problem_response
+from app.settings import Settings
 
 router = APIRouter(prefix="/v1/deployments", tags=["deployments"])
 
 
 def get_service(request: Request) -> DeploymentService:
     return request.app.state.deployment_service
+
+
+def get_change_feed(request: Request) -> ChangeFeed:
+    return request.app.state.change_feed
+
+
+def get_settings(request: Request) -> Settings:
+    return request.app.state.settings
 
 
 def get_checkpoint(
@@ -75,6 +88,28 @@ async def list_deployments(
     ] = DEFAULT_LIMIT,
 ) -> DeploymentPage:
     return await service.list_page(after=after, limit=limit)
+
+
+@router.get(
+    "/events",
+    summary="Stream deployment changes",
+    description=(
+        "Server-sent events, one frame per write, each carrying the changed documents and the "
+        "checkpoint to resume from. Comment frames keep the connection warm."
+    ),
+    response_class=EventSourceResponse,
+)
+async def stream_changes(
+    feed: Annotated[ChangeFeed, Depends(get_change_feed)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> EventSourceResponse:
+    return EventSourceResponse(frames(feed), ping=settings.heartbeat_seconds)
+
+
+async def frames(feed: ChangeFeed) -> AsyncGenerator[str]:
+    async with feed.subscribe() as changes:
+        async for changed in changes:
+            yield ChangeEvent.for_one(changed).model_dump_json()
 
 
 def get_precondition(

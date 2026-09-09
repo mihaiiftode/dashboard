@@ -1,8 +1,11 @@
 import type { WriteConflict } from "./conflict"
 
+export type ConnectionState = "connecting" | "live" | "reconnecting" | "offline"
+
 export type SyncSnapshot = {
   pendingIds: ReadonlySet<string>
   conflict: WriteConflict | null
+  connection: ConnectionState
 }
 
 export type SyncStatus = {
@@ -14,15 +17,16 @@ export type SyncTracker = SyncStatus & {
   began: (deploymentId: string) => void
   settled: (deploymentId: string) => void
   conflicted: (conflict: WriteConflict) => void
+  connectionChanged: (connection: ConnectionState) => void
 }
 
 export const createSyncTracker = (): SyncTracker => {
   const pending = new Set<string>()
   const listeners = new Set<() => void>()
-  let snapshot: SyncSnapshot = { pendingIds: new Set(), conflict: null }
+  let snapshot: SyncSnapshot = { pendingIds: new Set(), conflict: null, connection: "connecting" }
 
-  const publish = (conflict: SyncSnapshot["conflict"]) => {
-    snapshot = { pendingIds: new Set(pending), conflict }
+  const publish = (next: Partial<SyncSnapshot>) => {
+    snapshot = { ...snapshot, pendingIds: new Set(pending), ...next }
     for (const listener of listeners) listener()
   }
 
@@ -34,12 +38,13 @@ export const createSyncTracker = (): SyncTracker => {
     snapshot: () => snapshot,
     began: (deploymentId) => {
       pending.add(deploymentId)
-      publish(snapshot.conflict)
+      publish({})
     },
     settled: (deploymentId) => {
       pending.delete(deploymentId)
-      publish(snapshot.conflict)
+      publish({})
     },
-    conflicted: (conflict) => publish(conflict),
+    conflicted: (conflict) => publish({ conflict }),
+    connectionChanged: (connection) => publish({ connection }),
   }
 }

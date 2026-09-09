@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pymongo import AsyncMongoClient
 from pymongo.errors import PyMongoError
 
+from app.deployments.change_feed import ChangeFeed
 from app.deployments.mongo_repository import MongoDeploymentRepository
 from app.deployments.repository import DeploymentRepository
 from app.deployments.router import register_deployment_error_handlers
@@ -34,8 +35,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             client, settings.database_name
         )
         await ensure_indexes(deployments)
+        changes = ChangeFeed()
+        app.state.settings = settings
+        app.state.change_feed = changes
         app.state.health_check = HealthCheck(client)
-        app.state.deployment_service = DeploymentService(deployments)
+        app.state.deployment_service = DeploymentService(deployments, changes)
         yield
         await client.close()
 

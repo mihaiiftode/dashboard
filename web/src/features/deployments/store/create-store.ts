@@ -5,12 +5,14 @@ import {
   createRxDatabase,
   type RxCollection,
   type RxDatabase,
+  type RxReplicationPullStreamItem,
   type RxReplicationWriteToMasterRow,
   type WithDeleted,
 } from "rxdb/plugins/core"
 import { RxDBMigrationSchemaPlugin } from "rxdb/plugins/migration-schema"
 import { getRxStorageDexie } from "rxdb/plugins/storage-dexie"
 import { replicateRxCollection, type RxReplicationState } from "rxdb/plugins/replication"
+import { Subject } from "rxjs"
 import { ApiError } from "@/lib/api/http"
 import { createLogger } from "@/lib/logger"
 import { PULL_BATCH_SIZE, type DeploymentsApi } from "./api"
@@ -63,7 +65,22 @@ export const createDeploymentsStore = async ({
   })
   const rxCollection = collections[COLLECTION_NAME] as RxCollection<Deployment>
   const tracker = createSyncTracker()
-  const replication = replicate(rxCollection, api, pullBatchSize, tracker)
+  const stream$ = new Subject<PullStreamItem>()
+  const unsubscribe = api.subscribe({
+    onOpen: () => tracker.connectionChanged("live"),
+    onError: () => {
+      tracker.connectionChanged(navigator.onLine ? "reconnecting" : "offline")
+      stream$.next("RESYNC")
+    },
+    onEvent: (event) => {
+      log.debug("streamed {count} changes", { count: event.documents.length })
+      stream$.next({
+        documents: event.documents.map((document) => ({ ...document, _deleted: false })),
+        checkpoint: event.checkpoint,
+      })
+    },
+  })
+  const replication = replicate(rxCollection, api, pullBatchSize, tracker, stream$)
   const collection = createCollection(
     rxdbCollectionOptions({ rxCollection, schema: deploymentSchema }),
   ) as unknown as DeploymentsCollection
@@ -78,17 +95,22 @@ export const createDeploymentsStore = async ({
       await replication.awaitInSync()
     },
     destroy: async () => {
+      unsubscribe()
+      stream$.complete()
       await replication.cancel()
       await database.close()
     },
   }
 }
 
+type PullStreamItem = RxReplicationPullStreamItem<Deployment, Checkpoint | undefined>
+
 const replicate = (
   rxCollection: RxCollection<Deployment>,
   api: DeploymentsApi,
   pullBatchSize: number,
   tracker: SyncTracker,
+  stream$: Subject<PullStreamItem>,
 ): RxReplicationState<Deployment, Checkpoint | undefined> =>
   replicateRxCollection<Deployment, Checkpoint | undefined>({
     collection: rxCollection,
@@ -102,6 +124,7 @@ const replicate = (
       },
     },
     pull: {
+      stream$: stream$.asObservable(),
       batchSize: pullBatchSize,
       handler: async (lastCheckpoint, batchSize) => {
         const page = await api.list({ after: lastCheckpoint ?? null, limit: batchSize })

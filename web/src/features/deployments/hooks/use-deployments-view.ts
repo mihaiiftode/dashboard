@@ -10,6 +10,7 @@ import { indexFieldAt, suggest } from "../query/suggest"
 import { contextFilters } from "../query/value-index"
 import { useFooterCounts } from "./use-footer-counts"
 import { useAllDeployments, useDeploymentWrites, useMatchedDeployments } from "../store/use-deployments"
+import { useSyncStatus } from "../store/use-sync-status"
 import { useScopeCounts, useValueIndex } from "../store/use-value-index"
 
 export const QUERY_INPUT_ID = "search"
@@ -21,6 +22,7 @@ export type QueryChange = (next: string | ((previous: string) => string)) => voi
 
 export const useDeploymentsView = (query: string, onQueryChange: QueryChange) => {
   const rows = useAllDeployments()
+  const sync = useSyncStatus()
   const writes = useDeploymentWrites()
   const schema = useMemo(() => buildSchema(rows), [rows])
   const [chosen, setChosen] = useState<ReadonlySet<string> | null>(null)
@@ -103,7 +105,7 @@ export const useDeploymentsView = (query: string, onQueryChange: QueryChange) =>
     () => columnsFor(schema, fields, hiddenAttributeKeys, actions),
     [schema, fields, hiddenAttributeKeys, actions],
   )
-  const onRangeChange = useFooterCounts(matched.length, total)
+  const onRangeChange = useFooterCounts(matched.length, total, sync.connection)
 
   return {
     rows,
