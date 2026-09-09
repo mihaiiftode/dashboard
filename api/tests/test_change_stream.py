@@ -79,7 +79,9 @@ async def test_frames_carry_the_document_and_the_checkpoint_to_resume_from() -> 
     stream = frames(feed)
     published = asyncio.create_task(publish_soon(feed, changed))
     try:
-        event = json.loads(await asyncio.wait_for(anext(stream), timeout=5))
+        assert await anext(stream) == {"comment": "open", "retry": 1000}
+        frame = await asyncio.wait_for(anext(stream), timeout=5)
+        event = json.loads(str(frame["data"]))
     finally:
         await published
         await stream.aclose()
@@ -172,3 +174,14 @@ async def test_streams_a_deletion_and_a_restore(live_api: str) -> None:
             ).status_code == 200
             restore = json.loads(await asyncio.wait_for(next_data(lines), timeout=5))
             assert restore["documents"][0]["deleted_at"] is None
+
+
+async def test_opens_the_stream_before_anything_has_changed(live_api: str) -> None:
+    async with (
+        AsyncClient(base_url=live_api, timeout=10) as http,
+        http.stream("GET", "/v1/deployments/events") as response,
+    ):
+        lines = response.aiter_lines()
+
+        assert await asyncio.wait_for(anext(lines), timeout=2) == ": open"
+        assert await asyncio.wait_for(anext(lines), timeout=2) == "retry: 1000"

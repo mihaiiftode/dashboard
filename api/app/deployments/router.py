@@ -42,6 +42,8 @@ from app.settings import Settings
 
 router = APIRouter(prefix="/v1/deployments", tags=["deployments"])
 
+RECONNECT_MS = 1000
+
 PROBLEM = {
     "content": {"application/problem+json": {"schema": Problem.model_json_schema()}}
 }
@@ -126,10 +128,11 @@ async def stream_changes(
     return EventSourceResponse(frames(feed), ping=settings.heartbeat_seconds)
 
 
-async def frames(feed: ChangeFeed) -> AsyncGenerator[str]:
+async def frames(feed: ChangeFeed) -> AsyncGenerator[dict[str, object]]:
     async with feed.subscribe() as changes:
+        yield {"comment": "open", "retry": RECONNECT_MS}
         async for changed in changes:
-            yield ChangeEvent.for_one(changed).model_dump_json()
+            yield {"data": ChangeEvent.for_one(changed).model_dump_json()}
 
 
 def get_precondition(
