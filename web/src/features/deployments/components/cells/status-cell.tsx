@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge"
-import type { Status } from "@/lib/types"
+import type { Status } from "../../store/schema"
 import { cn } from "@/lib/utils"
 
 const STATUS_DOT: Record<Status, string> = {

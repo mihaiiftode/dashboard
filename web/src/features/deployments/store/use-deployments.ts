@@ -1,0 +1,99 @@
+"use client"
+
+import { useCallback, useMemo } from "react"
+import { useLiveQuery } from "@tanstack/react-db"
+import { notify } from "@/lib/notify"
+import { useDeploymentsCollection } from "./store-context"
+import type { Deployment } from "./schema"
+
+export type DeploymentsAccess = {
+  rows: Deployment[]
+  pendingIds: ReadonlySet<string>
+  setAttribute: (id: string, key: string, value: string) => void
+  remove: (id: string) => void
+  restore: (id: string) => void
+  copyId: (id: string) => void
+}
+
+const NONE: ReadonlySet<string> = new Set()
+const RETENTION_NOTE = "Recoverable for 30 days under is:deleted."
+
+export const useDeployments = (): DeploymentsAccess => {
+  const collection = useDeploymentsCollection()
+  const { data } = useLiveQuery((query) => query.from({ deployment: collection }))
+
+  const setAttribute = useCallback(
+    (id: string, key: string, value: string) => {
+      if (key === "name" && !value) {
+        notify.warning({
+          title: "Name is required",
+          description: "Type a name or press Escape to keep the current one.",
+        })
+        return
+      }
+      collection.update(id, (draft) => {
+        if (value === "") delete draft.attributes[key]
+        else draft.attributes[key] = value
+      })
+    },
+    [collection],
+  )
+
+  const setDeletedAt = useCallback(
+    (id: string, at: string | null) =>
+      collection.update(id, (draft) => {
+        draft.deleted_at = at
+      }),
+    [collection],
+  )
+
+  const remove = useCallback(
+    (id: string) => {
+      const target = collection.get(id)
+      if (!target || target.deleted_at !== null) return
+      setDeletedAt(id, new Date().toISOString())
+      undoableNotice("info", `Deleted ${target.attributes.name}`, RETENTION_NOTE, () => setDeletedAt(id, null))
+    },
+    [collection, setDeletedAt],
+  )
+
+  const restore = useCallback(
+    (id: string) => {
+      const target = collection.get(id)
+      if (!target || target.deleted_at === null) return
+      const deletedAt = target.deleted_at
+      undoableNotice("success", `Restored ${target.attributes.name}`, "Back in the deployments list, unchanged.", () =>
+        setDeletedAt(id, deletedAt),
+      )
+      setDeletedAt(id, null)
+    },
+    [collection, setDeletedAt],
+  )
+
+  const copyId = useCallback((id: string) => {
+    navigator.clipboard
+      .writeText(id)
+      .then(() => notify.success({ title: "Deployment ID copied" }))
+      .catch(() => notify.error({ title: "Copy failed", description: `Select and copy it manually: ${id}` }))
+  }, [])
+
+  return useMemo(
+    () => ({ rows: data, pendingIds: NONE, setAttribute, remove, restore, copyId }),
+    [data, setAttribute, remove, restore, copyId],
+  )
+}
+
+const undoableNotice = (tone: "info" | "success", title: string, description: string, undo: () => void): void => {
+  const emit = tone === "info" ? notify.info : notify.success
+  const noticeId = emit({
+    title,
+    description,
+    action: {
+      label: "Undo",
+      onClick: () => {
+        notify.dismiss(noticeId)
+        undo()
+      },
+    },
+  })
+}

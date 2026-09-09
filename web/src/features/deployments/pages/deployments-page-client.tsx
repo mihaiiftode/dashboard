@@ -2,8 +2,16 @@
 
 import dynamic from "next/dynamic"
 import { TableSkeleton } from "../components/table-skeleton"
+import { DeploymentsStoreProvider } from "../store/store-context"
+import type { DeploymentsPageProps } from "./deployments-page"
 
-export const DeploymentsPageClient = dynamic(
-  () => import("./deployments-page").then((module) => module.DeploymentsPage),
-  { ssr: false, loading: () => <TableSkeleton /> },
+const DeploymentsPage = dynamic(() => import("./deployments-page").then((module) => module.DeploymentsPage), {
+  ssr: false,
+  loading: () => <TableSkeleton />,
+})
+
+export const DeploymentsPageClient = (props: DeploymentsPageProps) => (
+  <DeploymentsStoreProvider>
+    <DeploymentsPage {...props} />
+  </DeploymentsStoreProvider>
 )

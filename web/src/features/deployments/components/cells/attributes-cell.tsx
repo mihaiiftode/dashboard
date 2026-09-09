@@ -2,7 +2,7 @@
 
 import { Badge } from "@/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import type { Deployment } from "@/lib/types"
+import type { Deployment } from "../../store/schema"
 import { ValueChip } from "../value-chip"
 import { AttributesEditor } from "./attributes-editor"
 

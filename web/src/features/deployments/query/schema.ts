@@ -1,4 +1,4 @@
-import type { Deployment } from "@/lib/types"
+import type { Deployment } from "../store/schema"
 
 export type FieldKind = "enum" | "string" | "date" | "id"
 

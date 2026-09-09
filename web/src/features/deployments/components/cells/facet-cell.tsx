@@ -1,4 +1,4 @@
-import type { DeploymentType, Environment, Status } from "@/lib/types"
+import type { DeploymentType, Environment, Status } from "../../store/schema"
 import { EnvironmentCell } from "./environment-cell"
 import { StatusCell } from "./status-cell"
 import { TypeCell } from "./type-cell"

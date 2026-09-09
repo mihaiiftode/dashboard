@@ -17,7 +17,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { removeToken, replaceSpan, splitTokens, parseToken, type Token } from "../query/grammar"
 import type { Schema } from "../query/schema"
 import { suggest, type Suggestion } from "../query/suggest"
-import type { Deployment } from "@/lib/types"
+import type { Deployment } from "../store/schema"
 import { cn } from "@/lib/utils"
 
 const KIND_CLASS: Record<Suggestion["kind"], string> = {

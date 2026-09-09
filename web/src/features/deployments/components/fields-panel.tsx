@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import type { Field, Schema } from "../query/schema"
-import type { Deployment } from "@/lib/types"
+import type { Deployment } from "../store/schema"
 import { cn } from "@/lib/utils"
 
 const TOP = 5

@@ -1,5 +1,5 @@
 import { BoxIcon, ClockIcon, CogIcon } from "lucide-react"
-import type { DeploymentType } from "@/lib/types"
+import type { DeploymentType } from "../../store/schema"
 
 const TYPE_ICON: Record<DeploymentType, typeof BoxIcon> = {
   web_service: BoxIcon,

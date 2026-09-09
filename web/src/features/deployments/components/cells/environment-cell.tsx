@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge"
-import type { Environment } from "@/lib/types"
+import type { Environment } from "../../store/schema"
 
 export const EnvironmentCell = ({ value }: { value: Environment }) => (
   <Badge

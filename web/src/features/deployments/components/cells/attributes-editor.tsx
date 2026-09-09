@@ -5,7 +5,7 @@ import { PlusIcon, XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Field as FormField, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import type { Deployment } from "@/lib/types"
+import type { Deployment } from "../../store/schema"
 
 const KEY_RULE = /^[a-z0-9_-]{1,64}$/
 

@@ -6,10 +6,10 @@ import { useVirtualizer } from "@tanstack/react-virtual"
 import { ArrowDownIcon, ArrowUpIcon, ChevronsUpDownIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import type { Deployment } from "@/lib/types"
+import type { Deployment } from "../../store/schema"
 import { cn } from "@/lib/utils"
 import type { Field } from "../../query/schema"
-import type { DeploymentColumns } from "./columns"
+import type { DeploymentColumns, DeploymentsTableMeta } from "./columns"
 import { tableFeatures } from "./features"
 import { GroupRow } from "./group-row"
 
@@ -38,6 +38,7 @@ type DeploymentsTableProps = {
   columns: DeploymentColumns
   fields: Field[]
   hasAttributesColumn: boolean
+  pendingIds: ReadonlySet<string>
   groupKey: string | null
   sort: Sort
   onSortChange: (next: Sort) => void
@@ -50,6 +51,7 @@ export const DeploymentsTable = memo(
     columns,
     fields,
     hasAttributesColumn,
+    pendingIds,
     groupKey,
     sort,
     onSortChange,
@@ -69,10 +71,12 @@ export const DeploymentsTable = memo(
     const sorting: SortingState = useMemo(() => (sort ? [{ id: sort.key, desc: sort.desc }] : []), [sort])
     const groupField = fields.find((field) => field.key === groupKey) ?? null
 
+    const meta = useMemo<DeploymentsTableMeta>(() => ({ pendingIds }), [pendingIds])
     const table = useTable({
       features: tableFeatures,
       columns,
       data: rows,
+      meta,
       state: { sorting, expanded, grouping: groupField ? [groupField.key] : [] },
       onSortingChange: (updater) => {
         const next = typeof updater === "function" ? updater(sorting) : updater

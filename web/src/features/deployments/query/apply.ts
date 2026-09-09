@@ -1,4 +1,4 @@
-import type { Deployment } from "@/lib/types"
+import type { Deployment } from "../store/schema"
 import { type Token } from "./grammar"
 import { resolveKey, type Schema } from "./schema"
 

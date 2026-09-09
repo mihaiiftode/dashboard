@@ -1,17 +1,16 @@
 import { describe, expect, it } from "vitest"
-import { buildDataset } from "@/lib/mock-data"
+import { deployments } from "@/test/deployments"
 import { buildSchema } from "../../query/schema"
 import { columnsFor, type RowActions } from "./columns"
 
 const actions: RowActions = {
-  pendingIds: new Set(),
   onSetAttribute: () => undefined,
   onDelete: () => undefined,
   onRestore: () => undefined,
   onCopyId: () => undefined,
 }
 
-const schema = buildSchema(buildDataset(200))
+const schema = buildSchema(deployments(200))
 const fieldsFor = (keys: string[]) => keys.map((key) => schema.byKey.get(key)).filter((field) => field !== undefined)
 
 describe("columnsFor", () => {

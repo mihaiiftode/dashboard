@@ -1,4 +1,4 @@
-import type { Deployment } from "@/lib/types"
+import type { Deployment } from "../store/schema"
 import { applyFilters, DELETED_SCOPE, resolve } from "./apply"
 import { parse, parseToken, quoteIfNeeded, spanAt, type Span } from "./grammar"
 import { resolveKey, type Schema } from "./schema"

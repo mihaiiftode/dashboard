@@ -1,7 +1,7 @@
 import { createColumnHelper } from "@tanstack/react-table"
 import { TagIcon } from "lucide-react"
 import { daysLeft } from "@/lib/format"
-import type { Deployment } from "@/lib/types"
+import type { Deployment } from "../../store/schema"
 import { AttributesCell } from "../cells/attributes-cell"
 import { ChipEditCell } from "../cells/chip-edit-cell"
 import { facetCell } from "../cells/facet-cell"
@@ -14,12 +14,20 @@ import { isChipField, optionsFor, type Field, type Schema } from "../../query/sc
 import { tableFeatures } from "./features"
 
 export type RowActions = {
-  pendingIds: ReadonlySet<string>
   onSetAttribute: (id: string, key: string, value: string) => void
   onDelete: (id: string) => void
   onRestore: (id: string) => void
   onCopyId: (id: string) => void
 }
+
+export type DeploymentsTableMeta = {
+  pendingIds: ReadonlySet<string>
+}
+
+const pendingIn = (table: { options: { meta?: unknown } }, id: string): boolean =>
+  ((table.options.meta as DeploymentsTableMeta | undefined)?.pendingIds ?? EMPTY).has(id)
+
+const EMPTY: ReadonlySet<string> = new Set()
 
 const helper = createColumnHelper<typeof tableFeatures, Deployment>()
 
@@ -37,7 +45,8 @@ export function columnsFor(schema: Schema, fields: Field[], hiddenAttributeKeys:
     helper.accessor((deployment) => field.read(deployment) ?? "", {
       id: field.key,
       header: () => (field.attribute ? <AttributeHeader label={field.key} /> : field.label),
-      cell: ({ row }) => renderValue(field, row.original, schema, actions),
+      cell: ({ row, table }) =>
+        renderValue(field, row.original, schema, actions, pendingIn(table, row.original.deployment_id)),
     }),
   )
   const attributesColumn =
@@ -72,8 +81,7 @@ export function columnsFor(schema: Schema, fields: Field[], hiddenAttributeKeys:
   return helper.columns([...valueColumns, ...attributesColumn, actionsColumn])
 }
 
-function renderValue(field: Field, deployment: Deployment, schema: Schema, actions: RowActions) {
-  const pending = actions.pendingIds.has(deployment.deployment_id)
+function renderValue(field: Field, deployment: Deployment, schema: Schema, actions: RowActions, pending: boolean) {
   const readOnly = deployment.deleted_at !== null
   const commit = (next: string) => actions.onSetAttribute(deployment.deployment_id, field.key, next)
   switch (field.key) {

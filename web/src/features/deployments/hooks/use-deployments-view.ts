@@ -7,7 +7,7 @@ import { applyFilters, resolve, showsDeleted, sortRows } from "../query/apply"
 import { addValue, parse, upsertDirective } from "../query/grammar"
 import { buildSchema, defaultVisible, type Schema } from "../query/schema"
 import { useFooterCounts } from "./use-footer-counts"
-import { useMockDeployments } from "./use-mock-deployments"
+import { useDeployments } from "../store/use-deployments"
 
 export const QUERY_INPUT_ID = "search"
 
@@ -17,12 +17,13 @@ const DEFAULT_SORT: Sort = { key: "created", desc: true }
 export type QueryChange = (next: string | ((previous: string) => string)) => void
 
 export const useDeploymentsView = (query: string, onQueryChange: QueryChange) => {
-  const store = useMockDeployments()
+  const store = useDeployments()
   const { rows } = store
   const schema = useMemo(() => buildSchema(rows), [rows])
-  const [visible, setVisible] = useState<ReadonlySet<string>>(() => new Set(defaultColumns(buildSchema(rows))))
+  const [chosen, setChosen] = useState<ReadonlySet<string> | null>(null)
   const [fieldsOpen, setFieldsOpen] = useState(false)
 
+  const visible = useMemo(() => chosen ?? new Set(defaultColumns(schema)), [chosen, schema])
   const resolved = useMemo(() => resolve(parse(query), schema), [query, schema])
   const sort = resolved.sort ?? DEFAULT_SORT
   const sorted = useMemo(() => sortRows(rows, sort, schema), [rows, sort, schema])
@@ -37,13 +38,12 @@ export const useDeploymentsView = (query: string, onQueryChange: QueryChange) =>
 
   const actions = useMemo<RowActions>(
     () => ({
-      pendingIds: store.pendingIds,
       onSetAttribute: store.setAttribute,
       onDelete: store.remove,
       onRestore: store.restore,
       onCopyId: store.copyId,
     }),
-    [store],
+    [store.setAttribute, store.remove, store.restore, store.copyId],
   )
 
   const onSortChange = useCallback(
@@ -62,15 +62,17 @@ export const useDeploymentsView = (query: string, onQueryChange: QueryChange) =>
     [onQueryChange],
   )
   const onClearQuery = useCallback(() => onQueryChange(""), [onQueryChange])
-  const onToggleColumn = useCallback((key: string) => {
-    setVisible((previous) => {
-      const next = new Set(previous)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }, [])
-  const onResetColumns = useCallback(() => setVisible(new Set(defaultColumns(schema))), [schema])
+  const onToggleColumn = useCallback(
+    (key: string) =>
+      setChosen((previous) => {
+        const next = new Set(previous ?? visible)
+        if (next.has(key)) next.delete(key)
+        else next.add(key)
+        return next
+      }),
+    [visible],
+  )
+  const onResetColumns = useCallback(() => setChosen(null), [])
   const onToggleFields = useCallback(() => setFieldsOpen((open) => !open), [])
   const columns = useMemo(
     () => columnsFor(schema, fields, hiddenAttributeKeys, actions),
@@ -83,6 +85,7 @@ export const useDeploymentsView = (query: string, onQueryChange: QueryChange) =>
     matched,
     schema,
     columns,
+    pendingIds: store.pendingIds,
     fields,
     hasAttributesColumn: hiddenAttributeKeys.length > 0,
     visible,
