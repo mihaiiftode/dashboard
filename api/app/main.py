@@ -9,6 +9,7 @@ from pymongo.errors import PyMongoError
 
 from app.deployments.mongo_repository import MongoDeploymentRepository
 from app.deployments.repository import DeploymentRepository
+from app.deployments.router import register_deployment_error_handlers
 from app.deployments.router import router as deployments_router
 from app.deployments.service import DeploymentService
 from app.errors import register_error_handlers
@@ -20,9 +21,7 @@ from app.settings import Settings
 logger = logging.getLogger(__name__)
 
 
-def create_app(
-    settings: Settings | None = None, repository: DeploymentRepository | None = None
-) -> FastAPI:
+def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
     configure_logging(settings.log_format, settings.log_level)
 
@@ -31,7 +30,7 @@ def create_app(
         client: AsyncMongoClient = AsyncMongoClient(
             settings.mongo_url, serverSelectionTimeoutMS=settings.mongo_timeout_ms
         )
-        deployments = repository or MongoDeploymentRepository.from_client(
+        deployments = MongoDeploymentRepository.from_client(
             client, settings.database_name
         )
         await ensure_indexes(deployments)
@@ -48,6 +47,7 @@ def create_app(
         allow_headers=["*"],
     )
     register_error_handlers(app)
+    register_deployment_error_handlers(app)
     app.include_router(health_router)
     app.include_router(deployments_router)
     return app

@@ -30,6 +30,7 @@ export const attributesSchema = z
 
 export const deploymentSchema = z.object({
   deployment_id: z.uuid(),
+  revision: z.int().min(1),
   version: attributeValue,
   status: z.enum(STATUSES),
   type: z.enum(TYPES),
@@ -51,7 +52,18 @@ export const deploymentPageSchema = z.object({
   checkpoint: checkpointSchema.nullable(),
 })
 
+export const writableSchema = deploymentSchema.pick({
+  version: true,
+  status: true,
+  type: true,
+  environment: true,
+  attributes: true,
+})
+
+export const writableOf = (deployment: Deployment): WritableDeployment => writableSchema.parse(deployment)
+
 export type Attributes = z.infer<typeof attributesSchema>
+export type WritableDeployment = z.infer<typeof writableSchema>
 export type Deployment = z.infer<typeof deploymentSchema>
 export type Checkpoint = z.infer<typeof checkpointSchema>
 export type DeploymentPage = z.infer<typeof deploymentPageSchema>

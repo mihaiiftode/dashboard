@@ -45,6 +45,7 @@ export const deployment = (index: number, overrides: DeploymentOverrides = {}): 
   const { attributes, ...rest } = overrides
   return {
     deployment_id: deploymentId(index),
+    revision: 1,
     version: `1.${index % 20}.${index % 7}`,
     status: STATUSES[index % STATUSES.length],
     type: TYPES[index % TYPES.length],

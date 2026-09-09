@@ -32,7 +32,8 @@ export const InlineEditor = ({ value, options, mono, onCommit, onCancel }: Inlin
     if (event.key === "Escape") onCancel()
   }
   if (options && options.length > 0) {
-    const filtered = options.filter((option) => option.value.toLowerCase().includes(draft.toLowerCase()))
+    const filtered =
+      draft === value ? options : options.filter((option) => option.value.toLowerCase().includes(draft.toLowerCase()))
     return (
       <Autocomplete
         items={filtered}

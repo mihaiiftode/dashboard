@@ -85,10 +85,16 @@ class Attributes(BaseModel):
         return {**known, **self.extras}
 
 
+Revision = Annotated[
+    int, Field(ge=1, description="Bumped on every write, the concurrency token")
+]
+
+
 class Deployment(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     deployment_id: UUID
+    revision: Revision = 1
     version: AttributeValue
     status: Status
     type: DeploymentType
@@ -102,6 +108,7 @@ class Deployment(BaseModel):
     def to_document(self) -> dict[str, Any]:
         return {
             "deployment_id": str(self.deployment_id),
+            "revision": self.revision,
             "version": self.version,
             "status": self.status.value,
             "type": self.type.value,
@@ -132,6 +139,10 @@ class Writable(BaseModel):
     type: DeploymentType
     environment: Environment
     attributes: Attributes
+
+
+def etag_of(revision: int) -> str:
+    return f'"{revision}"'
 
 
 ListLimit = Annotated[int, Field(ge=1, le=1000)]

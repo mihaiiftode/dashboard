@@ -64,8 +64,10 @@ const OpenStore = ({ api, databaseName, retry, children }: OpenStoreProps) => {
 
 export const useDeploymentsStoreState = () => useContext(StoreContext)
 
-export const useDeploymentsCollection = () => {
+export const useDeploymentsStore = (): DeploymentsStore => {
   const state = useContext(StoreContext)
-  if (state.status !== "ready") throw new Error("useDeploymentsCollection used outside a ready store")
-  return state.store.collection
+  if (state.status !== "ready") throw new Error("useDeploymentsStore used outside a ready store")
+  return state.store
 }
+
+export const useDeploymentsCollection = () => useDeploymentsStore().collection

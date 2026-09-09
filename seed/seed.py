@@ -118,6 +118,7 @@ def generate_deployment() -> dict:
 
     deployment = {
         "deployment_id": str(uuid.uuid4()),
+        "revision": 1,
         "version": generate_version(),
         "status": random.choices(STATUSES, weights=STATUS_WEIGHTS, k=1)[0],
         "type": random.choices(TYPES, weights=TYPE_WEIGHTS, k=1)[0],

@@ -3,7 +3,7 @@ from typing import Any
 from uuid import UUID
 
 from bson import CodecOptions
-from pymongo import ASCENDING, AsyncMongoClient
+from pymongo import ASCENDING, AsyncMongoClient, ReturnDocument
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.deployments.models import Checkpoint, Deployment
@@ -51,12 +51,19 @@ class MongoDeploymentRepository:
         )
         return None if document is None else Deployment.model_validate(document)
 
-    async def replace_all(self, deployments: list[Deployment]) -> None:
-        await self._collection.delete_many({})
-        if deployments:
-            await self._collection.insert_many(
-                [row.to_document() for row in deployments]
-            )
+    async def replace(
+        self, deployment: Deployment, if_revision: int | None
+    ) -> Deployment | None:
+        criteria: dict[str, Any] = {"deployment_id": str(deployment.deployment_id)}
+        if if_revision is not None:
+            criteria["revision"] = if_revision
+        document = await self._collection.find_one_and_replace(
+            criteria,
+            deployment.to_document(),
+            projection=PROJECTION,
+            return_document=ReturnDocument.AFTER,
+        )
+        return None if document is None else Deployment.model_validate(document)
 
     @staticmethod
     def _after(after: Checkpoint | None) -> dict[str, Any]:

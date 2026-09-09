@@ -1,12 +1,14 @@
 "use client"
 
-import { useCallback, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useLiveQuery } from "@tanstack/react-db"
 import { notify } from "@/lib/notify"
 import { compileQuery } from "../query/compile"
 import type { Resolved } from "../query/apply"
 import type { Schema } from "../query/schema"
+import type { WriteConflict } from "./conflict"
 import { useDeploymentsCollection } from "./store-context"
+import { useSyncStatus } from "./use-sync-status"
 import type { Deployment } from "./schema"
 
 export type DeploymentsAccess = {
@@ -18,7 +20,6 @@ export type DeploymentsAccess = {
   copyId: (id: string) => void
 }
 
-const NONE: ReadonlySet<string> = new Set()
 const RETENTION_NOTE = "Recoverable for 30 days under is:deleted."
 
 export const useAllDeployments = (): Deployment[] => {
@@ -40,6 +41,8 @@ export const useDeploymentWrites = (): Omit<DeploymentsAccess, "rows" | "pending
   pendingIds: ReadonlySet<string>
 } => {
   const collection = useDeploymentsCollection()
+  const sync = useSyncStatus()
+  useConflictNotice(sync.conflict)
 
   const setAttribute = useCallback(
     (id: string, key: string, value: string) => {
@@ -97,8 +100,8 @@ export const useDeploymentWrites = (): Omit<DeploymentsAccess, "rows" | "pending
   }, [])
 
   return useMemo(
-    () => ({ pendingIds: NONE, setAttribute, remove, restore, copyId }),
-    [setAttribute, remove, restore, copyId],
+    () => ({ pendingIds: sync.pendingIds, setAttribute, remove, restore, copyId }),
+    [sync.pendingIds, setAttribute, remove, restore, copyId],
   )
 }
 
@@ -115,4 +118,17 @@ const undoableNotice = (tone: "info" | "success", title: string, description: st
       },
     },
   })
+}
+
+const useConflictNotice = (conflict: WriteConflict | null): void => {
+  const reported = useRef<WriteConflict | null>(null)
+  useEffect(() => {
+    if (conflict === null || reported.current === conflict) return
+    reported.current = conflict
+    const [first] = conflict.differences
+    notify.warning({
+      title: `${conflict.deployment.attributes.name} changed elsewhere`,
+      description: `Kept ${first.key} ${first.winning} instead of ${first.attempted}.`,
+    })
+  }, [conflict])
 }

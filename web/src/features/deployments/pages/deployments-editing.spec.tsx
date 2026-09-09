@@ -1,0 +1,105 @@
+import { screen, waitFor, within } from "@testing-library/react"
+import { describe, expect, it } from "vitest"
+import { deployment, deployments } from "@/test/deployments"
+import { renderWithProviders } from "@/test/render"
+import { setupUser } from "@/test/user"
+import { DeploymentsPage } from "./deployments-page"
+
+const noop = () => undefined
+
+const findTable = () => screen.findByRole("table", undefined, { timeout: 5000 })
+
+const openBrowser = async (rows = deployments(6)) => {
+  const user = setupUser()
+  const rendered = renderWithProviders(<DeploymentsPage query="" onQueryChange={noop} />, { rows })
+  const table = await findTable()
+  return { user, table, ...rendered }
+}
+
+describe("editing a deployment", () => {
+  it("saves a typed value and sends it to the API", async () => {
+    const rows = deployments(6)
+    const { user, table, api } = await openBrowser(rows)
+
+    await user.click(within(table).getByRole("button", { name: "Edit name: service-005" }))
+    await user.keyboard("payments-api{Enter}")
+
+    expect(await within(table).findByText("payments-api")).toBeVisible()
+    await waitFor(() => expect(api.rowFor(rows[5].deployment_id)?.attributes.name).toBe("payments-api"))
+    expect(api.writes[0]).toMatchObject({ id: rows[5].deployment_id, expectedRevision: 1 })
+  })
+
+  it("saves a value picked from the suggestions of a chip field", async () => {
+    const rows = deployments(6)
+    const { user, table, api } = await openBrowser(rows)
+
+    await user.click(within(table).getAllByRole("button", { name: /^Edit priority/ })[0])
+    await user.click(await screen.findByRole("option", { name: /low/ }))
+
+    await waitFor(() => expect(api.writes).toHaveLength(1))
+    expect(api.rowFor(api.writes[0].id)?.attributes.priority).toBe("low")
+  })
+
+  it("keeps the stored value when the edit is cancelled", async () => {
+    const { user, table, api } = await openBrowser()
+
+    await user.click(within(table).getByRole("button", { name: "Edit name: service-005" }))
+    await user.keyboard("throwaway{Escape}")
+
+    expect(within(table).getByRole("button", { name: "Edit name: service-005" })).toBeVisible()
+    expect(api.writes).toHaveLength(0)
+  })
+
+  it("refuses to clear the name and explains why", async () => {
+    const { user, table, api } = await openBrowser()
+
+    await user.click(within(table).getByRole("button", { name: "Edit name: service-005" }))
+    await user.clear(screen.getByRole("textbox", { name: "Edit value" }))
+    await user.keyboard("{Enter}")
+
+    expect(await screen.findByText("Name is required")).toBeVisible()
+    expect(api.writes).toHaveLength(0)
+    expect(within(table).getByRole("button", { name: "Edit name: service-005" })).toBeVisible()
+  })
+
+  it("reverts to the winning value and names it when someone else wrote first", async () => {
+    const rows = deployments(6)
+    const { user, table, api } = await openBrowser(rows)
+    api.store({ ...rows[5], attributes: { ...rows[5].attributes, name: "theirs" }, revision: 9 })
+
+    await user.click(within(table).getByRole("button", { name: "Edit name: service-005" }))
+    await user.keyboard("mine{Enter}")
+
+    expect(await screen.findByText(/changed elsewhere/)).toBeVisible()
+    expect(await screen.findByText(/Kept name theirs instead of mine/)).toBeVisible()
+    expect(await within(await findTable()).findByText("theirs")).toBeVisible()
+  })
+
+  it("offers no editing on a deleted deployment", async () => {
+    const rows = [deployment(0), deployment(1, { deleted_at: "2026-03-02T09:00:00.000Z" })]
+    const { table } = await openBrowser(rows)
+
+    expect(within(table).getByRole("button", { name: "Edit name: service-000" })).toBeEnabled()
+    expect(within(table).queryByRole("button", { name: /Edit name: service-001/ })).toBeNull()
+  })
+
+  it("marks the row pending until the write settles", async () => {
+    const rows = deployments(6)
+    const { user, table, api } = await openBrowser(rows)
+    const release = api.holdWrites()
+
+    await user.click(within(table).getByRole("button", { name: "Edit name: service-005" }))
+    await user.keyboard("payments-api{Enter}")
+
+    await within(table).findByText("payments-api")
+    const pendingRows = async () =>
+      (await screen.findAllByRole("status", { name: "Loading" })).map(
+        (spinner) => spinner.closest("[data-slot='table-row']")?.textContent ?? "",
+      )
+    expect((await pendingRows()).every((text) => text.includes("payments-api"))).toBe(true)
+
+    release()
+
+    await waitFor(() => expect(screen.queryAllByRole("status", { name: "Loading" })).toHaveLength(0))
+  })
+})

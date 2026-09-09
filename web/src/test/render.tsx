@@ -2,6 +2,7 @@ import { render, type RenderOptions } from "@testing-library/react"
 import { ThemeProvider } from "next-themes"
 import type { ReactElement, ReactNode } from "react"
 import { FooterStatusProvider } from "@/components/shell/footer-status"
+import { Toaster } from "@/components/ui/toast"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { createFakeDeploymentsApi, type FakeDeploymentsApi } from "@/features/deployments/store/fake-api"
 import { DeploymentsStoreProvider } from "@/features/deployments/store/store-context"
@@ -21,9 +22,11 @@ export const renderWithProviders = (ui: ReactElement, { rows, api, ...options }:
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
       <TooltipProvider>
         <FooterStatusProvider>
-          <DeploymentsStoreProvider api={store} databaseName={`spec-${crypto.randomUUID()}`}>
-            {children}
-          </DeploymentsStoreProvider>
+          <Toaster>
+            <DeploymentsStoreProvider api={store} databaseName={`spec-${crypto.randomUUID()}`}>
+              {children}
+            </DeploymentsStoreProvider>
+          </Toaster>
         </FooterStatusProvider>
       </TooltipProvider>
     </ThemeProvider>

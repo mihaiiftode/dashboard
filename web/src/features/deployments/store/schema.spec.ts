@@ -3,6 +3,7 @@ import { deploymentSchema } from "./schema"
 
 const SEED_RECORD = {
   deployment_id: "3f1a5c7e-9b2d-4e6f-8a1b-2c3d4e5f6a7b",
+  revision: 1,
   version: "2.14.3",
   status: "active",
   type: "web_service",

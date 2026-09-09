@@ -2,6 +2,8 @@ import { z } from "zod"
 import { deploymentSchema } from "./schema"
 
 export const PRIMARY_KEY = "deployment_id"
+export const SCHEMA_VERSION = 1
+export const migrationStrategies = { 1: (document: Record<string, unknown>) => ({ ...document, revision: 1 }) }
 const PRIMARY_KEY_MAX_LENGTH = 36
 
 type JsonSchemaObject = {
@@ -22,7 +24,7 @@ export const rxdbDeploymentSchema = () => {
     [PRIMARY_KEY]: { type: "string", maxLength: PRIMARY_KEY_MAX_LENGTH },
   }
   return {
-    version: 0,
+    version: SCHEMA_VERSION,
     primaryKey: PRIMARY_KEY,
     type: "object",
     properties,

@@ -4,23 +4,26 @@ from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
+from pymongo.asynchronous.database import AsyncDatabase
 
-from app.deployments.memory_repository import InMemoryDeploymentRepository
 from app.deployments.models import Deployment
 from app.main import create_app
 from app.settings import Settings
-from tests.conftest import client_for
+from tests.conftest import client_for, store
 
 pytestmark = pytest.mark.anyio
 
 BASE = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
 
 
-def deployment(offset_seconds: int, deployment_id: UUID) -> Deployment:
+def deployment(
+    offset_seconds: int, deployment_id: UUID, revision: int = 1
+) -> Deployment:
     stamp = BASE + timedelta(seconds=offset_seconds)
     return Deployment.model_validate(
         {
             "deployment_id": str(deployment_id),
+            "revision": revision,
             "version": "1.0.0",
             "status": "active",
             "type": "worker",
@@ -40,12 +43,11 @@ async def rows() -> list[Deployment]:
 
 
 @pytest.fixture
-async def client(rows: list[Deployment]) -> AsyncIterator[AsyncClient]:
-    app = create_app(
-        Settings(mongo_url="mongodb://unused"),
-        repository=InMemoryDeploymentRepository(rows),
-    )
-    async with client_for(app) as http:
+async def client(
+    scratch_settings: Settings, database: AsyncDatabase, rows: list[Deployment]
+) -> AsyncIterator[AsyncClient]:
+    await store(database, rows)
+    async with client_for(create_app(scratch_settings)) as http:
         yield http
 
 
@@ -119,6 +121,7 @@ async def test_serves_a_full_document_shape(client: AsyncClient) -> None:
     item = body["items"][0]
     assert set(item) == {
         "deployment_id",
+        "revision",
         "version",
         "status",
         "type",
@@ -148,3 +151,180 @@ async def test_rejects_a_tiebreaker_without_a_timestamp(client: AsyncClient) -> 
 
     assert response.status_code == 422
     assert "updated_after" in response.json()["detail"]
+
+
+@pytest.fixture
+async def deleted_row() -> Deployment:
+    row = deployment(99, uuid4())
+    return row.model_copy(update={"deleted_at": BASE})
+
+
+@pytest.fixture
+async def edit_client(
+    scratch_settings: Settings,
+    database: AsyncDatabase,
+    rows: list[Deployment],
+    deleted_row: Deployment,
+) -> AsyncIterator[AsyncClient]:
+    await store(database, [*rows, deleted_row])
+    async with client_for(create_app(scratch_settings)) as http:
+        yield http
+
+
+def writable_body(name: str = "renamed") -> dict[str, object]:
+    return {
+        "version": "2.0.0",
+        "status": "failed",
+        "type": "cron_job",
+        "environment": "production",
+        "attributes": {"name": name, "region": "eu-west-1"},
+    }
+
+
+async def test_serves_one_deployment_with_a_version_tag(
+    edit_client: AsyncClient, rows: list[Deployment]
+) -> None:
+    response = await edit_client.get(f"/v1/deployments/{rows[0].deployment_id}")
+
+    assert response.status_code == 200
+    assert response.json()["deployment_id"] == str(rows[0].deployment_id)
+    assert response.headers["etag"] != ""
+
+
+async def test_returns_not_found_for_an_unknown_deployment(
+    edit_client: AsyncClient,
+) -> None:
+    response = await edit_client.get(f"/v1/deployments/{uuid4()}")
+
+    assert response.status_code == 404
+    assert response.headers["content-type"].startswith("application/problem+json")
+
+
+async def test_replaces_a_deployment_when_the_version_tag_matches(
+    edit_client: AsyncClient, rows: list[Deployment]
+) -> None:
+    target = rows[0].deployment_id
+    tag = (await edit_client.get(f"/v1/deployments/{target}")).headers["etag"]
+
+    response = await edit_client.put(
+        f"/v1/deployments/{target}", json=writable_body(), headers={"If-Match": tag}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["attributes"] == {"name": "renamed", "region": "eu-west-1"}
+    assert body["status"] == "failed"
+    assert response.headers["etag"] != tag
+
+
+async def test_replaces_unconditionally_without_a_version_tag(
+    edit_client: AsyncClient, rows: list[Deployment]
+) -> None:
+    response = await edit_client.put(
+        f"/v1/deployments/{rows[0].deployment_id}", json=writable_body()
+    )
+
+    assert response.status_code == 200
+    assert response.json()["attributes"]["name"] == "renamed"
+
+
+async def test_returns_the_winning_deployment_when_the_version_tag_is_stale(
+    edit_client: AsyncClient, rows: list[Deployment]
+) -> None:
+    target = rows[0].deployment_id
+    await edit_client.put(f"/v1/deployments/{target}", json=writable_body("first"))
+
+    response = await edit_client.put(
+        f"/v1/deployments/{target}",
+        json=writable_body(),
+        headers={"If-Match": '"1"'},
+    )
+
+    assert response.status_code == 412
+    assert response.json()["attributes"]["name"] == "first"
+    assert response.headers["etag"] == '"2"'
+
+
+async def test_rejects_an_empty_name(
+    edit_client: AsyncClient, rows: list[Deployment]
+) -> None:
+    response = await edit_client.put(
+        f"/v1/deployments/{rows[0].deployment_id}", json=writable_body(name="")
+    )
+
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/problem+json")
+
+
+async def test_rejects_a_name_of_only_whitespace(
+    edit_client: AsyncClient, rows: list[Deployment]
+) -> None:
+    response = await edit_client.put(
+        f"/v1/deployments/{rows[0].deployment_id}", json=writable_body(name="   ")
+    )
+
+    assert response.status_code == 422
+    assert "name" in response.json()["detail"]
+
+
+async def test_rejects_an_attribute_key_outside_the_rule(
+    edit_client: AsyncClient, rows: list[Deployment]
+) -> None:
+    body = writable_body()
+    body["attributes"] = {"name": "renamed", "Not Allowed": "x"}
+
+    response = await edit_client.put(
+        f"/v1/deployments/{rows[0].deployment_id}", json=body
+    )
+
+    assert response.status_code == 422
+
+
+async def test_rejects_a_field_the_client_may_not_write(
+    edit_client: AsyncClient, rows: list[Deployment]
+) -> None:
+    body = writable_body()
+    body["created_by"] = "someone@example.com"
+
+    response = await edit_client.put(
+        f"/v1/deployments/{rows[0].deployment_id}", json=body
+    )
+
+    assert response.status_code == 422
+
+
+async def test_refuses_to_replace_a_deleted_deployment(
+    edit_client: AsyncClient, deleted_row: Deployment
+) -> None:
+    response = await edit_client.put(
+        f"/v1/deployments/{deleted_row.deployment_id}", json=writable_body()
+    )
+
+    assert response.status_code == 409
+
+
+async def test_returns_not_found_when_replacing_an_unknown_deployment(
+    edit_client: AsyncClient,
+) -> None:
+    response = await edit_client.put(f"/v1/deployments/{uuid4()}", json=writable_body())
+
+    assert response.status_code == 404
+
+
+async def test_creates_the_indexes_the_dashboard_relies_on(
+    edit_client: AsyncClient, database: AsyncDatabase
+) -> None:
+    indexes = await database["deployments"].index_information()
+
+    assert [
+        name
+        for name, spec in indexes.items()
+        if spec.get("unique") and spec["key"] == [("deployment_id", 1)]
+    ]
+    assert [
+        name
+        for name, spec in indexes.items()
+        if spec["key"] == [("updated_at", 1), ("deployment_id", 1)]
+    ]
+    expiring = [name for name, spec in indexes.items() if "expireAfterSeconds" in spec]
+    assert indexes[expiring[0]]["expireAfterSeconds"] == 30 * 24 * 60 * 60

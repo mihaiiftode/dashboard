@@ -64,7 +64,7 @@ Applies to `api/` and `web/`. Reviews cite these rules by heading.
 ## Tests
 
 - One test per stated behaviour. No tests for getters, pass-throughs, or framework wiring.
-- Tests cross a module's interface. Service tests use the in-memory repository. Repository contract tests run once, parametrised over the Mongo adapter on testcontainers and the in-memory adapter. Router tests use ASGI transport over the real service and the fake repository. Store tests on the client use the fake API adapter.
+- Tests cross a module's interface. The service depends on the repository abstraction and its tests mock that interface. Repository tests run against Mongo on testcontainers, each on its own scratch database. Router tests use ASGI transport over the real service and repository. Store tests on the client use the fake API adapter.
 - Test files are `*.spec.ts` or `*.spec.tsx`, colocated next to the source.
 - Component tests render a feature root over the store backed by the fake API adapter, with React Testing Library. They assert what a user sees and does: rows, edits, toasts, restores. No snapshot tests, no tests of styling.
 - Component tests render through `test/render.tsx`, which wraps providers and the fake API store, and drive input through `test/user.ts` with delays disabled. `test/setup.ts` stubs the jsdom gaps Base UI needs: `matchMedia`, `requestAnimationFrame`, `scrollIntoView`, `PointerEvent`.

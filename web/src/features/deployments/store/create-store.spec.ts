@@ -22,6 +22,14 @@ const storeOver = async (rows: Deployment[], pullBatchSize?: number) => {
 
 const idsIn = (current: DeploymentsStore) => [...current.collection.values()].map((row) => row.deployment_id).sort()
 
+const rowIn = (current: DeploymentsStore, id: string) =>
+  [...current.collection.values()].find((row) => row.deployment_id === id)
+
+const settle = async (current: DeploymentsStore) => {
+  await current.whenInSync()
+  await new Promise((resolve) => setTimeout(resolve, 20))
+}
+
 afterEach(async () => {
   await store?.destroy()
   store = null
@@ -83,5 +91,71 @@ describe("createDeploymentsStore", () => {
     expect(stored).toHaveLength(2)
     expect(stored.find((row) => row.deployment_id === gone.deployment_id)?.deleted_at).toBe(gone.deleted_at)
     expect(stored.every((row) => !("_deleted" in row && row._deleted))).toBe(true)
+  })
+
+  it("pushes a local edit to the API with the revision it expects to replace", async () => {
+    const rows = deployments(2)
+    const { api, store: current } = await storeOver(rows)
+
+    current.collection.update(rows[0].deployment_id, (draft) => {
+      draft.attributes.name = "renamed"
+    })
+    await settle(current)
+
+    expect(api.writes).toHaveLength(1)
+    expect(api.writes[0]).toMatchObject({ id: rows[0].deployment_id, expectedRevision: 1 })
+    expect(api.rowFor(rows[0].deployment_id)?.attributes.name).toBe("renamed")
+  })
+
+  it("takes the revision the server stamped back into the collection", async () => {
+    const rows = deployments(1)
+    const { store: current } = await storeOver(rows)
+
+    current.collection.update(rows[0].deployment_id, (draft) => {
+      draft.attributes.name = "renamed"
+    })
+    await settle(current)
+
+    expect(rowIn(current, rows[0].deployment_id)?.revision).toBe(2)
+  })
+
+  it("reverts to the winning document when someone else wrote first", async () => {
+    const rows = deployments(1)
+    const { api, store: current } = await storeOver(rows)
+    api.store({ ...rows[0], attributes: { ...rows[0].attributes, name: "theirs" }, revision: 7 })
+
+    current.collection.update(rows[0].deployment_id, (draft) => {
+      draft.attributes.name = "mine"
+    })
+    await settle(current)
+
+    expect(rowIn(current, rows[0].deployment_id)?.attributes.name).toBe("theirs")
+  })
+
+  it("exposes the losing field so the view can explain the revert", async () => {
+    const rows = deployments(1)
+    const { api, store: current } = await storeOver(rows)
+    api.store({ ...rows[0], attributes: { ...rows[0].attributes, name: "theirs" }, revision: 7 })
+
+    current.collection.update(rows[0].deployment_id, (draft) => {
+      draft.attributes.name = "mine"
+    })
+    await settle(current)
+
+    expect(current.sync.snapshot().conflict?.differences).toEqual([
+      { key: "name", attempted: "mine", winning: "theirs" },
+    ])
+  })
+
+  it("leaves nothing pending once a write settles", async () => {
+    const rows = deployments(1)
+    const { store: current } = await storeOver(rows)
+
+    current.collection.update(rows[0].deployment_id, (draft) => {
+      draft.attributes.name = "renamed"
+    })
+    await settle(current)
+
+    expect([...current.sync.snapshot().pendingIds]).toEqual([])
   })
 })
