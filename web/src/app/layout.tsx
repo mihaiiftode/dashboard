@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next"
 import localFont from "next/font/local"
+import { NuqsAdapter } from "nuqs/adapters/next/app"
 import { AppShell } from "@/components/shell/app-shell"
 import "./globals.css"
 
@@ -35,7 +36,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" suppressHydrationWarning className={`${sans.variable} ${mono.variable} h-full antialiased`}>
       <body className="flex h-full min-h-full flex-col">
-        <AppShell>{children}</AppShell>
+        <NuqsAdapter>
+          <AppShell>{children}</AppShell>
+        </NuqsAdapter>
       </body>
     </html>
   )

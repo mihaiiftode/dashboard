@@ -1,10 +1,10 @@
 import { Suspense } from "react"
-import { DeploymentsViewClient } from "@/components/deployments/client-views"
+import { DeploymentsRoute } from "./deployments-route"
 
 export default function Page() {
   return (
     <Suspense>
-      <DeploymentsViewClient />
+      <DeploymentsRoute />
     </Suspense>
   )
 }

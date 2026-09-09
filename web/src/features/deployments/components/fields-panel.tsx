@@ -5,7 +5,7 @@ import { ChevronRightIcon, Columns3Icon, LayersIcon, RotateCcwIcon, SearchIcon, 
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
-import type { Field, Schema } from "@/lib/query/schema"
+import type { Field, Schema } from "../query/schema"
 import type { Deployment } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -23,16 +23,7 @@ function countValues(field: Field, rows: Deployment[]): Counted[] {
   return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([value, count]) => ({ value, count }))
 }
 
-function FieldRow({
-  field,
-  rows,
-  search,
-  visible,
-  grouped,
-  onToggleColumn,
-  onGroup,
-  onFilter,
-}: {
+type FieldRowProps = {
   field: Field
   rows: Deployment[]
   search: string
@@ -41,7 +32,9 @@ function FieldRow({
   onToggleColumn: () => void
   onGroup: () => void
   onFilter: (value: string) => void
-}) {
+}
+
+const FieldRow = ({ field, rows, search, visible, grouped, onToggleColumn, onGroup, onFilter }: FieldRowProps) => {
   const [manualOpen, setManualOpen] = useState(false)
   const counted = useMemo(() => countValues(field, rows), [field, rows])
   const coverage = useMemo(() => counted.reduce((n, c) => n + c.count, 0), [counted])
@@ -69,7 +62,7 @@ function FieldRow({
             data-icon="inline-start"
             className={cn("transition-transform motion-reduce:transition-none", open && "rotate-90")}
           />
-          {field.attribute && <TagIcon className="size-3 shrink-0 opacity-60" aria-hidden />}
+          {field.attribute ? <TagIcon className="size-3 shrink-0 opacity-60" aria-hidden /> : null}
           <span className="truncate">{field.key}</span>
           <span className="ml-auto text-[11px] text-muted-foreground tabular-nums">{coverage.toLocaleString()}</span>
         </CollapsibleTrigger>
@@ -95,16 +88,16 @@ function FieldRow({
         </Button>
       </div>
       <CollapsibleContent className="flex flex-col gap-0.5 pb-1 pl-6">
-        {values.length === 0 && (
+        {values.length === 0 ? (
           <span className="px-1.5 text-xs text-muted-foreground">no values in current results</span>
-        )}
+        ) : null}
         {values.map((v) => (
           <Button
             key={v.value}
             variant="ghost"
             size="xs"
             className="h-6 w-full justify-start gap-2 px-1.5 font-mono text-xs font-normal"
-            title={`Filter ${field.key}: ${v.value}`}
+            aria-label={`Filter ${field.key}: ${v.value}`}
             onClick={() => onFilter(v.value)}
           >
             <span className="min-w-0 flex-1 truncate text-left">{v.value}</span>
@@ -122,16 +115,7 @@ function FieldRow({
   )
 }
 
-export function FieldsPanel({
-  schema,
-  rows,
-  visible,
-  group,
-  onToggleColumn,
-  onGroup,
-  onFilter,
-  onResetColumns,
-}: {
+type FieldsPanelProps = {
   schema: Schema
   rows: Deployment[]
   visible: ReadonlySet<string>
@@ -140,7 +124,18 @@ export function FieldsPanel({
   onGroup: (key: string | null) => void
   onFilter: (key: string, value: string) => void
   onResetColumns: () => void
-}) {
+}
+
+export const FieldsPanel = ({
+  schema,
+  rows,
+  visible,
+  group,
+  onToggleColumn,
+  onGroup,
+  onFilter,
+  onResetColumns,
+}: FieldsPanelProps) => {
   const [search, setSearch] = useState("")
   const q = search.trim().toLowerCase()
   const fields = schema.fields.filter((f) => f.kind !== "id" && f.kind !== "date" && f.key !== "description")

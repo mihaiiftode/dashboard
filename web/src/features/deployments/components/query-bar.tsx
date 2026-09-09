@@ -14,9 +14,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Kbd } from "@/components/ui/kbd"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { parse, removeToken, replaceSpan, type Token } from "@/lib/query/grammar"
-import type { Schema } from "@/lib/query/schema"
-import { suggest, type Suggestion } from "@/lib/query/suggest"
+import { removeToken, replaceSpan, splitTokens, parseToken, type Token } from "../query/grammar"
+import type { Schema } from "../query/schema"
+import { suggest, type Suggestion } from "../query/suggest"
 import type { Deployment } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -28,27 +28,26 @@ const KIND_CLASS: Record<Suggestion["kind"], string> = {
   hint: "text-muted-foreground italic",
 }
 
-export function QueryBar({
-  query,
-  onQueryChange,
-  rows,
-  schema,
-  invalid,
-  trailing,
-}: {
+type QueryBarProps = {
+  inputId: string
   query: string
-  onQueryChange: (q: string) => void
+  onQueryChange: (next: string) => void
   rows: Deployment[]
   schema: Schema
   invalid: Token[]
   trailing?: ReactNode
-}) {
+}
+
+export const QueryBar = ({ inputId, query, onQueryChange, rows, schema, invalid, trailing }: QueryBarProps) => {
   const [caret, setCaret] = useState(query.length)
   const [open, setOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const { span, items } = useMemo(() => suggest(query, caret, rows, schema), [query, caret, rows, schema])
-  const tokens = useMemo(() => parse(query), [query])
+  const { span: activeSpan, items } = useMemo(() => suggest(query, caret, rows, schema), [query, caret, rows, schema])
+  const tokens = useMemo(
+    () => splitTokens(query).map((token) => ({ start: token.start, parsed: parseToken(token.raw) })),
+    [query],
+  )
   const invalidRaw = useMemo(() => new Set(invalid.map((t) => t.raw)), [invalid])
 
   const syncCaret = useCallback(() => {
@@ -77,7 +76,7 @@ export function QueryBar({
             value={query}
             onValueChange={(value: string, details) => {
               if (details.reason === "item-press") {
-                const next = replaceSpan(query, span, value)
+                const next = replaceSpan(query, activeSpan, value)
                 onQueryChange(next.query)
                 placeCaret(next.caret)
                 return
@@ -90,7 +89,7 @@ export function QueryBar({
           >
             <AutocompleteInput
               ref={inputRef}
-              id="search"
+              id={inputId}
               placeholder="Search, or filter like status:failed team:payments created:<7d group:team…"
               name="q"
               autoComplete="off"
@@ -114,8 +113,8 @@ export function QueryBar({
                 {(item: Suggestion) => (
                   <AutocompleteItem key={item.id} value={item}>
                     <span className={cn("font-mono text-xs", KIND_CLASS[item.kind])}>{item.label}</span>
-                    {item.detail && <span className="text-xs text-muted-foreground">{item.detail}</span>}
-                    {item.count !== undefined && (
+                    {item.detail ? <span className="text-xs text-muted-foreground">{item.detail}</span> : null}
+                    {item.count === undefined ? null : (
                       <span className="ml-auto font-mono text-[11px] text-muted-foreground tabular-nums">
                         {item.count.toLocaleString()}
                       </span>
@@ -128,30 +127,30 @@ export function QueryBar({
         </div>
         {trailing}
       </div>
-      {tokens.length > 0 && (
+      {tokens.length > 0 ? (
         <div className="flex flex-wrap items-center gap-1.5">
-          {tokens.map((t, i) => {
-            const bad = invalidRaw.has(t.raw)
+          {tokens.map(({ start, parsed }) => {
+            const bad = invalidRaw.has(parsed.raw)
             const chip = (
               <Badge
-                key={`${t.raw}-${i}`}
-                variant={bad ? "destructive" : t.kind === "text" ? "outline" : "secondary"}
+                key={start}
+                variant={bad ? "destructive" : parsed.kind === "text" ? "outline" : "secondary"}
                 className="gap-1 pr-1 font-mono text-[11px]"
               >
-                {t.kind === "text" ? `“${t.text}”` : t.raw}
+                {parsed.kind === "text" ? `“${parsed.text}”` : parsed.raw}
                 <Button
                   variant="ghost"
                   size="icon-xs"
                   className="size-4"
-                  aria-label={`Remove ${t.raw}`}
-                  onClick={() => onQueryChange(removeToken(query, t.raw))}
+                  aria-label={`Remove ${parsed.raw}`}
+                  onClick={() => onQueryChange(removeToken(query, parsed.raw))}
                 >
                   <XIcon />
                 </Button>
               </Badge>
             )
             return bad ? (
-              <Tooltip key={`${t.raw}-${i}`}>
+              <Tooltip key={start}>
                 <TooltipTrigger render={<span />}>{chip}</TooltipTrigger>
                 <TooltipContent>Unknown key or empty value, ignored</TooltipContent>
               </Tooltip>
@@ -163,7 +162,7 @@ export function QueryBar({
             Clear
           </Button>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

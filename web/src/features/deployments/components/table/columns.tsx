@@ -1,0 +1,120 @@
+import { createColumnHelper } from "@tanstack/react-table"
+import { TagIcon } from "lucide-react"
+import { daysLeft } from "@/lib/format"
+import type { Deployment } from "@/lib/types"
+import { AttributesCell } from "../cells/attributes-cell"
+import { ChipEditCell } from "../cells/chip-edit-cell"
+import { facetCell } from "../cells/facet-cell"
+import { IdCell } from "../cells/id-cell"
+import { InlineEditCell } from "../cells/inline-edit-cell"
+import { RowActionCell } from "../cells/row-action-cell"
+import { TextCell } from "../cells/text-cell"
+import { TimeCell } from "../cells/time-cell"
+import { isChipField, optionsFor, type Field, type Schema } from "../../query/schema"
+import { tableFeatures } from "./features"
+
+export type RowActions = {
+  pendingIds: ReadonlySet<string>
+  onSetAttribute: (id: string, key: string, value: string) => void
+  onDelete: (id: string) => void
+  onRestore: (id: string) => void
+  onCopyId: (id: string) => void
+}
+
+const helper = createColumnHelper<typeof tableFeatures, Deployment>()
+
+const AttributeHeader = ({ label }: { label: string }) => (
+  <span className="inline-flex items-center gap-1 font-mono normal-case">
+    <TagIcon className="size-3 opacity-60" aria-hidden />
+    {label}
+  </span>
+)
+
+export type DeploymentColumns = ReturnType<typeof columnsFor>
+
+export function columnsFor(schema: Schema, fields: Field[], hiddenAttributeKeys: string[], actions: RowActions) {
+  const valueColumns = fields.map((field) =>
+    helper.accessor((deployment) => field.read(deployment) ?? "", {
+      id: field.key,
+      header: () => (field.attribute ? <AttributeHeader label={field.key} /> : field.label),
+      cell: ({ row }) => renderValue(field, row.original, schema, actions),
+    }),
+  )
+  const attributesColumn =
+    hiddenAttributeKeys.length > 0
+      ? [
+          helper.display({
+            id: "attributes",
+            header: () => <AttributeHeader label="Attributes" />,
+            cell: ({ row }) => (
+              <AttributesCell
+                deployment={row.original}
+                keys={hiddenAttributeKeys}
+                readOnly={row.original.deleted_at !== null}
+                onCommit={(key, value) => actions.onSetAttribute(row.original.deployment_id, key, value)}
+              />
+            ),
+          }),
+        ]
+      : []
+  const actionsColumn = helper.display({
+    id: "actions",
+    header: () => <span className="sr-only">Actions</span>,
+    cell: ({ row }) => (
+      <RowActionCell
+        name={row.original.attributes.name}
+        deleted={row.original.deleted_at !== null}
+        onDelete={() => actions.onDelete(row.original.deployment_id)}
+        onRestore={() => actions.onRestore(row.original.deployment_id)}
+      />
+    ),
+  })
+  return helper.columns([...valueColumns, ...attributesColumn, actionsColumn])
+}
+
+function renderValue(field: Field, deployment: Deployment, schema: Schema, actions: RowActions) {
+  const pending = actions.pendingIds.has(deployment.deployment_id)
+  const readOnly = deployment.deleted_at !== null
+  const commit = (next: string) => actions.onSetAttribute(deployment.deployment_id, field.key, next)
+  switch (field.key) {
+    case "id":
+      return <IdCell value={deployment.deployment_id} onCopy={actions.onCopyId} />
+    case "status":
+    case "type":
+    case "env":
+      return facetCell(field.key, field.read(deployment) ?? "")
+    case "version":
+      return <TextCell value={deployment.version} tabular />
+    case "creator":
+      return <TextCell value={deployment.created_by} muted truncate />
+    case "created":
+      return <TimeCell iso={deployment.created_at} />
+    case "deleted":
+      return deployment.deleted_at === null ? null : (
+        <TimeCell iso={deployment.deleted_at} suffix={`${daysLeft(deployment.deleted_at)}d left`} />
+      )
+    default:
+      return isChipField(schema, field) ? (
+        <ChipEditCell
+          label={field.key}
+          value={field.read(deployment)}
+          options={optionsFor(schema, field.key)}
+          pending={pending}
+          readOnly={readOnly}
+          onCommit={commit}
+        />
+      ) : (
+        <InlineEditCell
+          label={field.key}
+          value={field.read(deployment) ?? ""}
+          placeholder="—"
+          pending={pending}
+          readOnly={readOnly}
+          mono={field.key === "oncall"}
+          muted={field.key !== "name"}
+          options={field.key === "name" || field.key === "description" ? undefined : optionsFor(schema, field.key)}
+          onCommit={commit}
+        />
+      )
+  }
+}

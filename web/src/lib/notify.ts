@@ -21,7 +21,10 @@ function show(type: "success" | "error" | "info" | "warning", notice: Notice) {
 export const notify = {
   success: (notice: Notice) => show("success", notice),
   info: (notice: Notice) => show("info", notice),
-  warning: (notice: Notice) => show("warning", notice),
+  warning: (notice: Notice) => {
+    log.warn("{title} {description}", { title: notice.title, description: notice.description ?? "" })
+    return show("warning", notice)
+  },
   error: (notice: Notice) => {
     log.error("{title} {description}", { title: notice.title, description: notice.description ?? "" })
     return show("error", notice)

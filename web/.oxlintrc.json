@@ -4,7 +4,7 @@
   "categories": {
     "correctness": "error",
     "suspicious": "error",
-    "perf": "warn"
+    "perf": "error"
   },
   "rules": {
     "no-console": "error",
@@ -27,15 +27,9 @@
       "rules": {
         "jsx-a11y/click-events-have-key-events": "off",
         "jsx-a11y/no-noninteractive-element-interactions": "off",
-        "jsx-a11y/label-has-associated-control": "off"
-      }
-    },
-    {
-      "files": ["src/components/deployments/**"],
-      "rules": {
-        "react/no-unstable-nested-components": "warn",
-        "react/refs": "warn",
-        "jsx-a11y/control-has-associated-label": "warn"
+        "jsx-a11y/label-has-associated-control": "off",
+        "react/no-array-index-key": "off",
+        "react/no-object-type-as-default-prop": "off"
       }
     }
   ],

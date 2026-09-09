@@ -125,3 +125,13 @@ export function resolveKey(schema: Schema, raw: string): Field | undefined {
   const k = raw.toLowerCase()
   return schema.byKey.get(ALIASES[k] ?? k)
 }
+
+export type ValueOption = { value: string; count: number }
+
+const OPTIONS_MAX = 40
+
+export function optionsFor(schema: Schema, key: string): ValueOption[] {
+  const values = schema.distinct.get(key)
+  if (!values || values.size > OPTIONS_MAX) return []
+  return [...values.entries()].sort((a, b) => b[1] - a[1]).map(([value, count]) => ({ value, count }))
+}

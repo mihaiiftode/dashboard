@@ -3,19 +3,16 @@
 import { RotateCcwIcon, Trash2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import type { Deployment } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
-export function RowAction({
-  deployment,
-  onDelete,
-  onRestore,
-}: {
-  deployment: Deployment
+type RowActionCellProps = {
+  name: string
+  deleted: boolean
   onDelete: () => void
   onRestore: () => void
-}) {
-  const deleted = deployment.deleted_at !== null
+}
+
+export const RowActionCell = ({ name, deleted, onDelete, onRestore }: RowActionCellProps) => {
   const label = deleted ? "Restore" : "Delete"
   return (
     <Tooltip>
@@ -25,7 +22,7 @@ export function RowAction({
             variant="ghost"
             size="icon-xs"
             className={cn("text-muted-foreground", deleted ? "hover:text-foreground" : "hover:text-destructive")}
-            aria-label={`${label} ${deployment.attributes.name}`}
+            aria-label={`${label} ${name}`}
             onClick={deleted ? onRestore : onDelete}
           />
         }
