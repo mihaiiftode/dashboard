@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { deployment, deployments } from "@/test/deployments"
+import { deletedDaysAgo, deployment, deployments } from "@/test/deployments"
 import { applyFilters, haystack, resolve, showsDeleted, sortRows } from "./apply"
 import { parse } from "./grammar"
 import { buildSchema, groupCandidates } from "./schema"
@@ -137,7 +137,7 @@ describe("applyFilters", () => {
 
   it("hides deleted deployments by default and shows only them under the deleted scope", () => {
     const live = deployment(1)
-    const gone = deployment(2, { deleted_at: "2026-03-02T09:00:00.000Z" })
+    const gone = deployment(2, { deleted_at: deletedDaysAgo() })
     expect(namesFor("", [live, gone])).toEqual([live.attributes.name])
     expect(namesFor("is:deleted", [live, gone])).toEqual([gone.attributes.name])
   })

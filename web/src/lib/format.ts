@@ -21,7 +21,9 @@ export function absoluteTime(iso: string): string {
   return `${dtf.format(new Date(iso))} UTC`
 }
 
-export function daysLeft(deletedAt: string, retentionDays = 30, now = Date.now()): number {
+export const RETENTION_DAYS = 30
+
+export function daysLeft(deletedAt: string, retentionDays = RETENTION_DAYS, now = Date.now()): number {
   const elapsed = (now - new Date(deletedAt).getTime()) / 86400e3
   return Math.max(0, Math.ceil(retentionDays - elapsed))
 }

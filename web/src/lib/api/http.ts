@@ -39,6 +39,11 @@ export async function requestJson<T>(
   return parsed.data
 }
 
+export async function requestVoid(fetcher: Fetcher, url: string, init?: RequestInit): Promise<void> {
+  const response = await fetcher(url, init)
+  if (!response.ok) throw problemFrom(response.status, await readBody(response))
+}
+
 const readBody = async (response: Response): Promise<unknown> => {
   const text = await response.text()
   if (!text) return null

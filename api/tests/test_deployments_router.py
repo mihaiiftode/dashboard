@@ -375,3 +375,69 @@ async def test_updates_a_key_the_deployment_already_carries(
     )
 
     assert response.json()["attributes"] == {"name": "renamed", "team": "search"}
+
+
+async def test_deletes_a_deployment_out_of_the_default_scope(
+    edit_client: AsyncClient, rows: list[Deployment]
+) -> None:
+    target = rows[0].deployment_id
+
+    response = await edit_client.delete(f"/v1/deployments/{target}")
+
+    assert response.status_code == 204
+    stored = (await edit_client.get(f"/v1/deployments/{target}")).json()
+    assert stored["deleted_at"] is not None
+    assert stored["revision"] == 2
+
+
+async def test_refuses_to_delete_a_deployment_twice(
+    edit_client: AsyncClient, deleted_row: Deployment
+) -> None:
+    response = await edit_client.delete(f"/v1/deployments/{deleted_row.deployment_id}")
+
+    assert response.status_code == 404
+
+
+async def test_returns_not_found_when_deleting_an_unknown_deployment(
+    edit_client: AsyncClient,
+) -> None:
+    assert (await edit_client.delete(f"/v1/deployments/{uuid4()}")).status_code == 404
+
+
+async def test_restores_a_deleted_deployment_unchanged(
+    edit_client: AsyncClient, deleted_row: Deployment
+) -> None:
+    response = await edit_client.post(
+        f"/v1/deployments/{deleted_row.deployment_id}/restore"
+    )
+
+    assert response.status_code == 200
+    restored = response.json()
+    assert restored["deleted_at"] is None
+    assert restored["attributes"] == deleted_row.attributes.to_map()
+    assert restored["revision"] == 2
+    assert response.headers["etag"] == '"2"'
+
+
+async def test_refuses_to_restore_a_deployment_that_is_not_deleted(
+    edit_client: AsyncClient, rows: list[Deployment]
+) -> None:
+    response = await edit_client.post(
+        f"/v1/deployments/{rows[0].deployment_id}/restore"
+    )
+
+    assert response.status_code == 409
+    assert response.headers["content-type"].startswith("application/problem+json")
+
+
+async def test_refuses_to_edit_a_deployment_once_it_is_deleted(
+    edit_client: AsyncClient, rows: list[Deployment]
+) -> None:
+    target = rows[0].deployment_id
+    await edit_client.delete(f"/v1/deployments/{target}")
+
+    response = await edit_client.put(
+        f"/v1/deployments/{target}", json=writable_body("after-delete")
+    )
+
+    assert response.status_code == 409

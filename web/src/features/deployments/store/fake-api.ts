@@ -80,6 +80,19 @@ export const createFakeDeploymentsApi = (initial: Deployment[] = []): FakeDeploy
       requests.push(request)
       return page(rows, request)
     },
+    remove: async (id) => {
+      const current = rows.find((row) => row.deployment_id === id)
+      if (!current || current.deleted_at !== null) throw new ApiError(NOT_FOUND, "Not Found")
+      put({ ...current, deleted_at: nextStamp(rows), revision: current.revision + 1, updated_at: nextStamp(rows) })
+    },
+    restore: async (id) => {
+      const current = rows.find((row) => row.deployment_id === id)
+      if (!current) throw new ApiError(NOT_FOUND, "Not Found")
+      if (current.deleted_at === null) throw new ApiError(CONFLICT, "Conflict")
+      const restored = { ...current, deleted_at: null, revision: current.revision + 1, updated_at: nextStamp(rows) }
+      put(restored)
+      return restored
+    },
     get: async (id) => {
       const found = rows.find((row) => row.deployment_id === id)
       if (!found) throw new ApiError(NOT_FOUND, "Not Found")

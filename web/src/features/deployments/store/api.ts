@@ -1,4 +1,4 @@
-import { ApiError, requestJson, type Fetcher } from "@/lib/api/http"
+import { ApiError, requestJson, requestVoid, type Fetcher } from "@/lib/api/http"
 import {
   changeEventSchema,
   deploymentPageSchema,
@@ -39,12 +39,16 @@ export type DeploymentsApi = {
   list: (request: ListRequest) => Promise<DeploymentPage>
   get: (id: string) => Promise<Deployment>
   replace: (request: ReplaceRequest) => Promise<ReplaceOutcome>
+  remove: (id: string) => Promise<void>
+  restore: (id: string) => Promise<Deployment>
   subscribe: (listeners: ChangeListeners) => () => void
 }
 
 export const createFetchDeploymentsApi = (baseUrl: string, fetcher: Fetcher = globalThis.fetch): DeploymentsApi => ({
   list: ({ after, limit }) => requestJson(fetcher, listUrl(baseUrl, after, limit), deploymentPageSchema),
   get: (id) => requestJson(fetcher, oneUrl(baseUrl, id), deploymentSchema),
+  remove: (id) => requestVoid(fetcher, oneUrl(baseUrl, id), { method: "DELETE" }),
+  restore: (id) => requestJson(fetcher, `${oneUrl(baseUrl, id)}/restore`, deploymentSchema, { method: "POST" }),
   subscribe: subscribeWithEventSource(baseUrl),
   replace: async ({ id, writable, expectedRevision }) => {
     try {

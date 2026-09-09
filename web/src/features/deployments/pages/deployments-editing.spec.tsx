@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import { deployment, deployments } from "@/test/deployments"
+import { deletedDaysAgo, deployment, deployments } from "@/test/deployments"
 import { renderWithProviders } from "@/test/render"
 import { setupUser } from "@/test/user"
 import { DeploymentsPage } from "./deployments-page"
@@ -76,7 +76,7 @@ describe("editing a deployment", () => {
   })
 
   it("offers no editing on a deleted deployment", async () => {
-    const rows = [deployment(0), deployment(1, { deleted_at: "2026-03-02T09:00:00.000Z" })]
+    const rows = [deployment(0), deployment(1, { deleted_at: deletedDaysAgo() })]
     const { table } = await openBrowser(rows)
 
     expect(within(table).getByRole("button", { name: "Edit name: service-000" })).toBeEnabled()

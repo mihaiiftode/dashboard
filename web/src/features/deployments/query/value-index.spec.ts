@@ -1,6 +1,6 @@
 import { createCollection, createLiveQueryCollection, localOnlyCollectionOptions } from "@tanstack/react-db"
 import { describe, expect, it } from "vitest"
-import { deployment, deployments } from "@/test/deployments"
+import { deletedDaysAgo, deployment, deployments } from "@/test/deployments"
 import type { Deployment } from "../store/schema"
 import { resolve } from "./apply"
 import { compileValueIndex } from "./compile"
@@ -136,7 +136,7 @@ describe("compileValueIndex", () => {
 
   it("counts inside the deleted scope when the query asks for it", async () => {
     const live = deployment(1, { attributes: { team: "payments" } })
-    const gone = deployment(2, { attributes: { team: "search" }, deleted_at: "2026-03-02T09:00:00.000Z" })
+    const gone = deployment(2, { attributes: { team: "search" }, deleted_at: deletedDaysAgo() })
 
     const { index } = await indexFor("team", "is:deleted", [live, gone])
 

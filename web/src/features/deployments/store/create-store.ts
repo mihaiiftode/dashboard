@@ -149,10 +149,13 @@ const pushRow = async (
 ): Promise<WithDeleted<Deployment> | null> => {
   const attempted = row.newDocumentState
   const master = row.assumedMasterState
-  if (master === undefined || attempted.deleted_at !== master.deleted_at) return null
+  if (master === undefined) return null
   tracker.began(attempted.deployment_id)
   try {
-    const settled = await settleWrite(attempted, master, api)
+    const settled =
+      attempted.deleted_at === master.deleted_at
+        ? await settleWrite(attempted, master, api)
+        : await settleScope(attempted, api)
     if (settled.rejection !== null) {
       log.warning("write to {id} was rejected: {detail}", {
         id: attempted.deployment_id,
@@ -173,6 +176,17 @@ const pushRow = async (
 }
 
 type SettledWrite = { winner: Deployment; rejection: string | null }
+
+const settleScope = async (attempted: Deployment, api: DeploymentsApi): Promise<SettledWrite> => {
+  try {
+    if (attempted.deleted_at === null) return { winner: await api.restore(attempted.deployment_id), rejection: null }
+    await api.remove(attempted.deployment_id)
+    return { winner: await api.get(attempted.deployment_id), rejection: null }
+  } catch (error) {
+    if (!rejected(error)) throw error
+    return { winner: await api.get(attempted.deployment_id), rejection: error.message }
+  }
+}
 
 const settleWrite = async (attempted: Deployment, master: Deployment, api: DeploymentsApi): Promise<SettledWrite> => {
   try {

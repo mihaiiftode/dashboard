@@ -27,6 +27,12 @@ class DeploymentDeleted(Exception):
         self.deployment_id = deployment_id
 
 
+class DeploymentNotDeleted(Exception):
+    def __init__(self, deployment_id: UUID) -> None:
+        super().__init__(f"deployment {deployment_id} is not deleted")
+        self.deployment_id = deployment_id
+
+
 class StaleWrite(Exception):
     def __init__(self, current: Deployment) -> None:
         super().__init__(f"deployment {current.deployment_id} moved on")
@@ -65,21 +71,57 @@ class DeploymentService:
         current = await self.get(deployment_id)
         if current.deleted_at is not None:
             raise DeploymentDeleted(deployment_id)
-        edited = current.model_copy(
-            update={
+        edited = self._stamped(
+            current,
+            {
                 "version": writable.version,
                 "status": writable.status,
                 "type": writable.type,
                 "environment": writable.environment,
                 "attributes": Attributes.checked(writable.attributes),
+            },
+        )
+        written = await self._repository.replace(edited, if_revision=if_revision)
+        if written is None:
+            logger.warning("stale write rejected for deployment %s", deployment_id)
+            raise StaleWrite(await self.get(deployment_id))
+        return await self._published(written, "replaced")
+
+    async def delete(self, deployment_id: UUID) -> Deployment:
+        current = await self.get(deployment_id)
+        if current.deleted_at is not None:
+            raise DeploymentNotFound(deployment_id)
+        return await self._written(
+            self._stamped(current, {"deleted_at": datetime.now(UTC)}), "deleted"
+        )
+
+    async def restore(self, deployment_id: UUID) -> Deployment:
+        current = await self.get(deployment_id)
+        if current.deleted_at is None:
+            raise DeploymentNotDeleted(deployment_id)
+        return await self._written(
+            self._stamped(current, {"deleted_at": None}), "restored"
+        )
+
+    @staticmethod
+    def _stamped(current: Deployment, update: dict[str, object]) -> Deployment:
+        return current.model_copy(
+            update={
+                **update,
                 "revision": current.revision + 1,
                 "updated_at": datetime.now(UTC),
             }
         )
-        written = await self._repository.replace(edited, if_revision=if_revision)
-        if written is not None:
-            logger.info("replaced deployment %s", deployment_id)
-            await self._changes.publish(written)
-            return written
-        logger.warning("stale write rejected for deployment %s", deployment_id)
-        raise StaleWrite(await self.get(deployment_id))
+
+    async def _written(self, edited: Deployment, operation: str) -> Deployment:
+        written = await self._repository.replace(
+            edited, if_revision=edited.revision - 1
+        )
+        if written is None:
+            raise StaleWrite(await self.get(edited.deployment_id))
+        return await self._published(written, operation)
+
+    async def _published(self, written: Deployment, operation: str) -> Deployment:
+        logger.info("%s deployment %s", operation, written.deployment_id)
+        await self._changes.publish(written)
+        return written

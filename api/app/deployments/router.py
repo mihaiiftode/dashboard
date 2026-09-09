@@ -31,6 +31,7 @@ from app.deployments.models import (
 )
 from app.deployments.service import (
     DeploymentDeleted,
+    DeploymentNotDeleted,
     DeploymentNotFound,
     DeploymentService,
     StaleWrite,
@@ -169,6 +170,42 @@ async def replace_deployment(
     return written
 
 
+@router.delete(
+    "/{deployment_id}",
+    summary="Delete one deployment",
+    description=(
+        "Marks the deployment deleted so clients can scope it under the trash. The database "
+        "removes it for good after the retention window."
+    ),
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_deployment(
+    deployment_id: UUID,
+    service: Annotated[DeploymentService, Depends(get_service)],
+) -> Response:
+    deleted = await service.delete(deployment_id)
+    return Response(
+        status_code=status.HTTP_204_NO_CONTENT,
+        headers={"ETag": etag_of(deleted.revision)},
+    )
+
+
+@router.post(
+    "/{deployment_id}/restore",
+    summary="Restore a deleted deployment",
+    description="Returns the deployment to the default scope with every field it had.",
+    response_model=Deployment,
+)
+async def restore_deployment(
+    deployment_id: UUID,
+    service: Annotated[DeploymentService, Depends(get_service)],
+    response: Response,
+) -> Deployment:
+    restored = await service.restore(deployment_id)
+    response.headers["ETag"] = etag_of(restored.revision)
+    return restored
+
+
 async def not_found_handler(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, DeploymentNotFound)
     return problem_response(
@@ -209,6 +246,18 @@ async def invalid_attributes_handler(request: Request, exc: Exception) -> JSONRe
     )
 
 
+async def not_deleted_handler(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, DeploymentNotDeleted)
+    return problem_response(
+        Problem(
+            title="Conflict",
+            status=status.HTTP_409_CONFLICT,
+            detail=f"{exc} so there is nothing to restore",
+            instance=request.url.path,
+        )
+    )
+
+
 async def stale_write_handler(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, StaleWrite)
     return JSONResponse(
@@ -222,4 +271,5 @@ def register_deployment_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(DeploymentNotFound, not_found_handler)
     app.add_exception_handler(DeploymentDeleted, deleted_handler)
     app.add_exception_handler(InvalidAttributes, invalid_attributes_handler)
+    app.add_exception_handler(DeploymentNotDeleted, not_deleted_handler)
     app.add_exception_handler(StaleWrite, stale_write_handler)

@@ -155,3 +155,20 @@ async def next_data(lines: AsyncIterator[str]) -> str:
         if line.startswith("data: "):
             return line.removeprefix("data: ")
     raise AssertionError("the stream closed without an event")
+
+
+async def test_streams_a_deletion_and_a_restore(live_api: str) -> None:
+    async with AsyncClient(base_url=live_api, timeout=10) as http:
+        target = (await http.get("/v1/deployments")).json()["items"][0]["deployment_id"]
+        async with http.stream("GET", "/v1/deployments/events") as response:
+            lines = response.aiter_lines()
+
+            assert (await http.delete(f"/v1/deployments/{target}")).status_code == 204
+            deletion = json.loads(await asyncio.wait_for(next_data(lines), timeout=5))
+            assert deletion["documents"][0]["deleted_at"] is not None
+
+            assert (
+                await http.post(f"/v1/deployments/{target}/restore")
+            ).status_code == 200
+            restore = json.loads(await asyncio.wait_for(next_data(lines), timeout=5))
+            assert restore["documents"][0]["deleted_at"] is None

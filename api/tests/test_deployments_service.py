@@ -9,6 +9,7 @@ from app.deployments.models import Deployment, InvalidAttributes, Writable
 from app.deployments.repository import DeploymentRepository
 from app.deployments.service import (
     DeploymentDeleted,
+    DeploymentNotDeleted,
     DeploymentNotFound,
     DeploymentService,
     StaleWrite,
@@ -274,3 +275,67 @@ async def test_reports_every_broken_rule_from_one_write() -> None:
         await service.replace(wanted, broken, if_revision=None)
 
     assert [item.key for item in raised.value.violations] == ["oncall", "Bad Key"]
+
+
+async def test_marks_a_deployment_deleted_and_publishes_it() -> None:
+    wanted = uuid4()
+    changes = publisher()
+    service = service_over(repository_holding(deployment(wanted)), changes)
+
+    deleted = await service.delete(wanted)
+
+    assert deleted.deleted_at is not None
+    assert deleted.revision == 4
+    changes.publish.assert_awaited_once_with(deleted)
+
+
+async def test_refuses_to_delete_a_deployment_twice() -> None:
+    wanted = uuid4()
+    changes = publisher()
+    service = service_over(
+        repository_holding(deployment(wanted, deleted=True)), changes
+    )
+
+    with pytest.raises(DeploymentNotFound):
+        await service.delete(wanted)
+
+    changes.publish.assert_not_awaited()
+
+
+async def test_raises_not_found_when_deleting_an_unknown_deployment() -> None:
+    with pytest.raises(DeploymentNotFound):
+        await service_over(repository_holding()).delete(uuid4())
+
+
+async def test_restores_a_deleted_deployment_unchanged_and_publishes_it() -> None:
+    wanted = uuid4()
+    changes = publisher()
+    stored = deployment(wanted, deleted=True)
+    service = service_over(repository_holding(stored), changes)
+
+    restored = await service.restore(wanted)
+
+    assert restored.deleted_at is None
+    assert restored.attributes.to_map() == stored.attributes.to_map()
+    assert restored.revision == 4
+    changes.publish.assert_awaited_once_with(restored)
+
+
+async def test_refuses_to_restore_a_deployment_that_is_not_deleted() -> None:
+    wanted = uuid4()
+    changes = publisher()
+    service = service_over(repository_holding(deployment(wanted)), changes)
+
+    with pytest.raises(DeploymentNotDeleted):
+        await service.restore(wanted)
+
+    changes.publish.assert_not_awaited()
+
+
+async def test_stamps_the_write_when_deleting_and_restoring() -> None:
+    wanted = uuid4()
+    service = service_over(repository_holding(deployment(wanted)))
+
+    deleted = await service.delete(wanted)
+
+    assert deleted.updated_at > BASE

@@ -1,6 +1,7 @@
 import { coalesce, concat, count, eq, ilike, inArray, isNull, not, or } from "@tanstack/react-db"
 import type { Token } from "./grammar"
 import type { Resolved } from "./apply"
+import { RETENTION_DAYS } from "@/lib/format"
 import { resolveKey, type Field, type Schema } from "./schema"
 
 type Row = Record<string, unknown>
@@ -50,13 +51,21 @@ export const compileScopeCounts = <T extends Builder>(source: T): T =>
 
 const compileFilters = <T extends Builder>(source: T, filters: readonly Token[], schema: Schema): T => {
   const withScope = source.where((row) => scopeClause(row, filters)) as T
-  return filters.reduce<T>((builder, token) => applyToken(builder, token, schema), withScope)
+  const scoped = showsDeleted(filters) ? (withScope.fn.where(withinRetention) as T) : withScope
+  return filters.reduce<T>((builder, token) => applyToken(builder, token, schema), scoped)
+}
+
+const showsDeleted = (filters: readonly Token[]): boolean =>
+  filters.some((token) => token.kind === "is" && token.value === "deleted" && !token.negated)
+
+const withinRetention = (row: Row): boolean => {
+  const deletedAt = rowOf(row).deleted_at
+  return deletedAt !== null && Date.now() - new Date(deletedAt).getTime() < RETENTION_DAYS * DAY_MS
 }
 
 const scopeClause = (row: Row, filters: readonly Token[]) => {
-  const deleted = filters.some((token) => token.kind === "is" && token.value === "deleted" && !token.negated)
   const clause = isNull(reference(row, "deleted_at"))
-  return deleted ? not(clause) : clause
+  return showsDeleted(filters) ? not(clause) : clause
 }
 
 const applyToken = <T extends Builder>(builder: T, token: Token, schema: Schema): T => {

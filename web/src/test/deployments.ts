@@ -36,6 +36,8 @@ export const deploymentId = (index: number): string => {
   ].join("-")
 }
 
+export const deletedDaysAgo = (days = 1): string => new Date(Date.now() - days * DAY_MS).toISOString()
+
 export type DeploymentOverrides = Partial<Omit<Deployment, "attributes">> & {
   attributes?: Partial<Deployment["attributes"]>
 }

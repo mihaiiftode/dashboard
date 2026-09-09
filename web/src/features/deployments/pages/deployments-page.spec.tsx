@@ -1,7 +1,7 @@
 import { screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { StatusFooter } from "@/components/shell/footer-status"
-import { deployment, deployments } from "@/test/deployments"
+import { deletedDaysAgo, deployment, deployments } from "@/test/deployments"
 import { renderWithProviders } from "@/test/render"
 import { setupUser } from "@/test/user"
 import { DeploymentsPage } from "./deployments-page"
@@ -43,7 +43,7 @@ describe("DeploymentsPage", () => {
   })
 
   it("hides deleted deployments from the default scope and shows them under the deleted scope", async () => {
-    const rows = [deployment(0), deployment(1, { deleted_at: "2026-03-02T09:00:00.000Z" })]
+    const rows = [deployment(0), deployment(1, { deleted_at: deletedDaysAgo() })]
     const { rerender } = renderWithProviders(<DeploymentsPage query="" onQueryChange={noop} />, { rows })
 
     const table = await findTable()

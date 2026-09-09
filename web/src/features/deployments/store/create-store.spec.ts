@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest"
-import { deployment, deployments } from "@/test/deployments"
+import { deletedDaysAgo, deployment, deployments } from "@/test/deployments"
 import { createFakeDeploymentsApi } from "./fake-api"
 import { createDeploymentsStore, type DeploymentsStore } from "./create-store"
 import type { Deployment } from "./schema"
@@ -83,7 +83,7 @@ describe("createDeploymentsStore", () => {
 
   it("keeps deleted deployments in the collection without marking them deleted in storage", async () => {
     const rows = deployments(2)
-    const gone = { ...rows[1], deleted_at: "2026-03-02T09:00:00.000Z" }
+    const gone = { ...rows[1], deleted_at: deletedDaysAgo() }
 
     const { store: current } = await storeOver([rows[0], gone])
 
@@ -246,5 +246,52 @@ describe("createDeploymentsStore", () => {
     expect(rowIn(current, rows[0].deployment_id)?.attributes.name).toBe(rows[0].attributes.name)
     expect(current.sync.snapshot().rejection?.detail).toContain("must be an email address")
     expect(current.sync.snapshot().conflict).toBeNull()
+  })
+
+  it("sends a newly deleted row to the delete endpoint", async () => {
+    const rows = deployments(2)
+    const { api, store: current } = await storeOver(rows)
+
+    current.collection.update(rows[0].deployment_id, (draft) => {
+      draft.deleted_at = new Date().toISOString()
+    })
+    await settle(current)
+
+    expect(api.rowFor(rows[0].deployment_id)?.deleted_at).not.toBeNull()
+    expect(api.writes).toHaveLength(0)
+  })
+
+  it("sends a row whose deletion was undone to the restore endpoint", async () => {
+    const rows = deployments(2)
+    const gone = { ...rows[1], deleted_at: deletedDaysAgo() }
+    const { api, store: current } = await storeOver([rows[0], gone])
+
+    current.collection.update(gone.deployment_id, (draft) => {
+      draft.deleted_at = null
+    })
+    await settle(current)
+
+    expect(api.rowFor(gone.deployment_id)?.deleted_at).toBeNull()
+  })
+
+  it("takes a deletion that arrives on the stream", async () => {
+    const rows = deployments(2)
+    const { api, store: current } = await storeOver(rows)
+
+    api.emit([{ ...rows[0], deleted_at: deletedDaysAgo(), revision: 5 }])
+    await settle(current)
+
+    expect(rowIn(current, rows[0].deployment_id)?.deleted_at).not.toBeNull()
+  })
+
+  it("takes a restore that arrives on the stream", async () => {
+    const rows = deployments(2)
+    const gone = { ...rows[1], deleted_at: deletedDaysAgo() }
+    const { api, store: current } = await storeOver([rows[0], gone])
+
+    api.emit([{ ...gone, deleted_at: null, revision: 6 }])
+    await settle(current)
+
+    expect(rowIn(current, gone.deployment_id)?.deleted_at).toBeNull()
   })
 })

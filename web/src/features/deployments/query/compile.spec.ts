@@ -1,6 +1,6 @@
 import { createCollection, createLiveQueryCollection, localOnlyCollectionOptions } from "@tanstack/react-db"
 import { describe, expect, it } from "vitest"
-import { deployment, deployments } from "@/test/deployments"
+import { deletedDaysAgo, deployment, deployments } from "@/test/deployments"
 import type { Deployment } from "../store/schema"
 import { resolve } from "./apply"
 import { compileQuery } from "./compile"
@@ -105,7 +105,7 @@ describe("compileQuery", () => {
 
   it("hides deleted deployments by default and shows only them under the deleted scope", async () => {
     const live = deployment(1)
-    const gone = deployment(2, { deleted_at: "2026-03-02T09:00:00.000Z" })
+    const gone = deployment(2, { deleted_at: deletedDaysAgo() })
     expect(await namesFor("", [live, gone])).toEqual([live.attributes.name])
     expect(await namesFor("is:deleted", [live, gone])).toEqual([gone.attributes.name])
   })
@@ -118,5 +118,20 @@ describe("compileQuery", () => {
 
   it("ignores an invalid token instead of narrowing on it", async () => {
     expect((await namesFor("nonsense:1", rows)).sort()).toEqual((await namesFor("", rows)).sort())
+  })
+
+  it("hides a deployment whose retention window has run out", async () => {
+    const kept = deployment(1, { deleted_at: new Date(Date.now() - 5 * 86400e3).toISOString() })
+    const expired = deployment(2, { deleted_at: new Date(Date.now() - 31 * 86400e3).toISOString() })
+
+    expect(await namesFor("is:deleted", [kept, expired])).toEqual([kept.attributes.name])
+    expect(await namesFor("", [kept, expired])).toEqual([])
+  })
+
+  it("treats a negated deleted scope as the default scope", async () => {
+    const live = deployment(1)
+    const gone = deployment(2, { deleted_at: deletedDaysAgo() })
+
+    expect(await namesFor("-is:deleted", [live, gone])).toEqual([live.attributes.name])
   })
 })
