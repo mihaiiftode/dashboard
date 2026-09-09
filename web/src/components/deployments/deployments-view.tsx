@@ -1,5 +1,6 @@
 "use client"
 
+import { usePublishFooterStatus, type FooterStatus } from "@/components/shell/footer-status"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { SearchXIcon } from "lucide-react"
@@ -12,7 +13,6 @@ import { addValue, parse, upsertDirective } from "@/lib/query/grammar"
 import { buildSchema, defaultVisible } from "@/lib/query/schema"
 import type { Deployment } from "@/lib/types"
 import { DeploymentsTable, type Sort } from "./deployments-table"
-import { FooterBar } from "./footer-bar"
 import { FieldsPanel } from "./fields-panel"
 import { QueryBar } from "./query-bar"
 import { FieldsToggle } from "./view-controls"
@@ -193,6 +193,13 @@ export function DeploymentsView() {
     [],
   )
 
+  usePublishFooterStatus(
+    useMemo<FooterStatus>(
+      () => ({ counts: { start: range.start, end: range.end, matched: filtered.length, total }, sync: "live" }),
+      [range.start, range.end, filtered.length, total],
+    ),
+  )
+
   return (
     <>
       <QueryBar
@@ -245,7 +252,6 @@ export function DeploymentsView() {
           />
         )}
       </div>
-      <FooterBar start={range.start} end={range.end} matched={filtered.length} total={total} />
     </>
   )
 }

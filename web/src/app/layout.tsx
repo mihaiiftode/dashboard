@@ -1,23 +1,22 @@
 import type { Metadata, Viewport } from "next"
-import { Atkinson_Hyperlegible_Mono, Atkinson_Hyperlegible_Next } from "next/font/google"
-import { ThemeProvider } from "next-themes"
-import { AppHeader } from "@/components/app-header"
-import { Toaster } from "@/components/ui/toast"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import localFont from "next/font/local"
+import { AppShell } from "@/components/shell/app-shell"
 import "./globals.css"
 
-const sans = Atkinson_Hyperlegible_Next({
+const sans = localFont({
+  src: "../fonts/atkinson-hyperlegible-next-latin.woff2",
   variable: "--font-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  adjustFontFallback: false,
+  weight: "200 800",
+  display: "swap",
+  adjustFontFallback: "Arial",
 })
 
-const mono = Atkinson_Hyperlegible_Mono({
+const mono = localFont({
+  src: "../fonts/atkinson-hyperlegible-mono-latin.woff2",
   variable: "--font-mono",
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  adjustFontFallback: false,
+  weight: "200 800",
+  display: "swap",
+  adjustFontFallback: "Arial",
 })
 
 export const metadata: Metadata = {
@@ -36,21 +35,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" suppressHydrationWarning className={`${sans.variable} ${mono.variable} h-full antialiased`}>
       <body className="flex h-full min-h-full flex-col">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <TooltipProvider>
-            <a
-              href="#main"
-              className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:ring-[3px] focus:ring-ring/50"
-            >
-              Skip to content
-            </a>
-            <AppHeader />
-            <main id="main" className="flex min-h-0 flex-1 flex-col">
-              {children}
-            </main>
-            <Toaster />
-          </TooltipProvider>
-        </ThemeProvider>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   )
