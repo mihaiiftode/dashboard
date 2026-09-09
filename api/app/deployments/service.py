@@ -33,13 +33,6 @@ class StaleWrite(Exception):
         self.current = current
 
 
-class InvalidAttribute(Exception):
-    def __init__(self, key: str, reason: str) -> None:
-        super().__init__(f"attribute {key!r} {reason}")
-        self.key = key
-        self.reason = reason
-
-
 class DeploymentService:
     def __init__(
         self, repository: DeploymentRepository, changes: ChangePublisher
@@ -78,7 +71,7 @@ class DeploymentService:
                 "status": writable.status,
                 "type": writable.type,
                 "environment": writable.environment,
-                "attributes": trimmed(writable.attributes),
+                "attributes": Attributes.checked(writable.attributes),
                 "revision": current.revision + 1,
                 "updated_at": datetime.now(UTC),
             }
@@ -90,11 +83,3 @@ class DeploymentService:
             return written
         logger.warning("stale write rejected for deployment %s", deployment_id)
         raise StaleWrite(await self.get(deployment_id))
-
-
-def trimmed(attributes: Attributes) -> Attributes:
-    values = {key: value.strip() for key, value in attributes.to_map().items()}
-    for key, value in values.items():
-        if value == "":
-            raise InvalidAttribute(key, "must not be blank")
-    return Attributes.model_validate(values)

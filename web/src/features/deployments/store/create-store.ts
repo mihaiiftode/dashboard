@@ -152,33 +152,39 @@ const pushRow = async (
   if (master === undefined || attempted.deleted_at !== master.deleted_at) return null
   tracker.began(attempted.deployment_id)
   try {
-    const winner = await winnerFor(attempted, master, api)
-    const conflict = conflictBetween(attempted, winner)
-    if (conflict) {
-      log.warning("write to {id} lost to a newer version", { id: attempted.deployment_id })
-      tracker.conflicted(conflict)
+    const settled = await settleWrite(attempted, master, api)
+    if (settled.rejection !== null) {
+      log.warning("write to {id} was rejected: {detail}", {
+        id: attempted.deployment_id,
+        detail: settled.rejection,
+      })
+      tracker.rejected({ deployment: settled.winner, detail: settled.rejection })
+    } else {
+      const conflict = conflictBetween(attempted, settled.winner)
+      if (conflict) {
+        log.warning("write to {id} lost to a newer version", { id: attempted.deployment_id })
+        tracker.conflicted(conflict)
+      }
     }
-    return { ...winner, _deleted: false }
+    return { ...settled.winner, _deleted: false }
   } finally {
     tracker.settled(attempted.deployment_id)
   }
 }
 
-const winnerFor = async (attempted: Deployment, master: Deployment, api: DeploymentsApi): Promise<Deployment> => {
+type SettledWrite = { winner: Deployment; rejection: string | null }
+
+const settleWrite = async (attempted: Deployment, master: Deployment, api: DeploymentsApi): Promise<SettledWrite> => {
   try {
     const result = await api.replace({
       id: attempted.deployment_id,
       writable: writableOf(attempted),
       expectedRevision: master.revision,
     })
-    return result.deployment
+    return { winner: result.deployment, rejection: null }
   } catch (error) {
     if (!rejected(error)) throw error
-    log.warning("write to {id} was rejected: {message}", {
-      id: attempted.deployment_id,
-      message: error.message,
-    })
-    return api.get(attempted.deployment_id)
+    return { winner: await api.get(attempted.deployment_id), rejection: error.message }
   }
 }
 

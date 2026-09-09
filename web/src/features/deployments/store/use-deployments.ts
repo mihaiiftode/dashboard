@@ -7,6 +7,7 @@ import { compileQuery } from "../query/compile"
 import type { Resolved } from "../query/apply"
 import type { Schema } from "../query/schema"
 import type { WriteConflict } from "./conflict"
+import type { WriteRejection } from "./sync-tracker"
 import { useDeploymentsCollection } from "./store-context"
 import { useSyncStatus } from "./use-sync-status"
 import type { Deployment } from "./schema"
@@ -43,6 +44,7 @@ export const useDeploymentWrites = (): Omit<DeploymentsAccess, "rows" | "pending
   const collection = useDeploymentsCollection()
   const sync = useSyncStatus()
   useConflictNotice(sync.conflict)
+  useRejectionNotice(sync.rejection)
 
   const setAttribute = useCallback(
     (id: string, key: string, value: string) => {
@@ -131,4 +133,16 @@ const useConflictNotice = (conflict: WriteConflict | null): void => {
       description: `Kept ${first.key} ${first.winning} instead of ${first.attempted}.`,
     })
   }, [conflict])
+}
+
+const useRejectionNotice = (rejection: WriteRejection | null): void => {
+  const reported = useRef<WriteRejection | null>(null)
+  useEffect(() => {
+    if (rejection === null || reported.current === rejection) return
+    reported.current = rejection
+    notify.error({
+      title: `${rejection.deployment.attributes.name} was not saved`,
+      description: rejection.detail,
+    })
+  }, [rejection])
 }

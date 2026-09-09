@@ -1,4 +1,5 @@
 import re
+from collections.abc import Mapping
 from enum import StrEnum
 from typing import Annotated, Any, Literal, Self
 from uuid import UUID
@@ -10,22 +11,35 @@ from pydantic import (
     EmailStr,
     Field,
     StringConstraints,
+    TypeAdapter,
+    ValidationError,
     model_serializer,
     model_validator,
 )
 
 KEY_RULE = re.compile(r"^[a-z0-9_-]{1,64}$")
+VALUE_MAX_LENGTH = 512
 
-AttributeValue = Annotated[str, StringConstraints(min_length=1, max_length=512)]
+AttributeValue = Annotated[
+    str, StringConstraints(min_length=1, max_length=VALUE_MAX_LENGTH)
+]
 
-KNOWN_OPTIONAL_KEYS = (
-    "description",
-    "team",
-    "region",
-    "language",
-    "framework",
-    "priority",
-)
+KEY_REASON = "must be 1 to 64 characters of a-z, 0-9, underscore or hyphen"
+BLANK_REASON = "must not be blank"
+LENGTH_REASON = f"must be at most {VALUE_MAX_LENGTH} characters"
+EMAIL_REASON = "must be an email address"
+REQUIRED_REASON = "is required"
+
+
+class AttributeViolation(BaseModel):
+    key: str
+    reason: str
+
+
+class InvalidAttributes(Exception):
+    def __init__(self, violations: list[AttributeViolation]) -> None:
+        super().__init__(", ".join(f"{item.key} {item.reason}" for item in violations))
+        self.violations = violations
 
 
 class Status(StrEnum):
@@ -58,6 +72,15 @@ class Attributes(BaseModel):
     priority: AttributeValue | None = None
     oncall: EmailStr | None = None
 
+    @classmethod
+    def checked(cls, values: Mapping[str, str]) -> Self:
+        """Trims every value and reports every rule an edit breaks, not only the first."""
+        trimmed = {key: value.strip() for key, value in values.items()}
+        violations = [*known_violations(trimmed), *extra_violations(trimmed)]
+        if violations:
+            raise InvalidAttributes(violations)
+        return cls.model_validate(trimmed)
+
     @model_validator(mode="after")
     def check_extra_keys(self) -> Self:
         for key, value in self.extras.items():
@@ -88,6 +111,52 @@ class Attributes(BaseModel):
 Revision = Annotated[
     int, Field(ge=1, description="Bumped on every write, the concurrency token")
 ]
+
+
+def known_violations(values: Mapping[str, str]) -> list[AttributeViolation]:
+    found: list[AttributeViolation] = []
+    for key in Attributes.model_fields:
+        value = values.get(key)
+        if value is None:
+            if key == "name":
+                found.append(AttributeViolation(key=key, reason=REQUIRED_REASON))
+            continue
+        reason = value_reason(key, value)
+        if reason is not None:
+            found.append(AttributeViolation(key=key, reason=reason))
+    return found
+
+
+def extra_violations(values: Mapping[str, str]) -> list[AttributeViolation]:
+    found: list[AttributeViolation] = []
+    for key, value in values.items():
+        if key in Attributes.model_fields:
+            continue
+        reason = KEY_REASON if not KEY_RULE.match(key) else value_reason(key, value)
+        if reason is not None:
+            found.append(AttributeViolation(key=key, reason=reason))
+    return found
+
+
+def value_reason(key: str, value: str) -> str | None:
+    if value == "":
+        return BLANK_REASON
+    if len(value) > VALUE_MAX_LENGTH:
+        return LENGTH_REASON
+    if key == "oncall" and not is_email(value):
+        return EMAIL_REASON
+    return None
+
+
+def is_email(value: str) -> bool:
+    try:
+        _EMAIL.validate_python(value)
+    except ValidationError:
+        return False
+    return True
+
+
+_EMAIL = TypeAdapter(EmailStr)
 
 
 class Deployment(BaseModel):
@@ -152,7 +221,7 @@ class Writable(BaseModel):
     status: Status
     type: DeploymentType
     environment: Environment
-    attributes: Attributes
+    attributes: dict[str, str]
 
 
 def etag_of(revision: int) -> str:

@@ -220,4 +220,31 @@ describe("createDeploymentsStore", () => {
     expect(rowIn(current, rows[0].deployment_id)).toEqual(afterWrite)
     expect(api.writes).toHaveLength(1)
   })
+
+  it("refuses a value the schema forbids before it reaches the store", async () => {
+    const rows = deployments(1)
+    const { api, store: current } = await storeOver(rows)
+
+    expect(() =>
+      current.collection.update(rows[0].deployment_id, (draft) => {
+        draft.attributes.oncall = "not-an-email"
+      }),
+    ).toThrow(/email/)
+    expect(api.writes).toHaveLength(0)
+  })
+
+  it("reverts and explains a write the API refuses", async () => {
+    const rows = deployments(1)
+    const { api, store: current } = await storeOver(rows)
+    api.refuseWrites("attributes oncall must be an email address")
+
+    current.collection.update(rows[0].deployment_id, (draft) => {
+      draft.attributes.name = "renamed"
+    })
+    await settle(current)
+
+    expect(rowIn(current, rows[0].deployment_id)?.attributes.name).toBe(rows[0].attributes.name)
+    expect(current.sync.snapshot().rejection?.detail).toContain("must be an email address")
+    expect(current.sync.snapshot().conflict).toBeNull()
+  })
 })

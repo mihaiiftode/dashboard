@@ -5,17 +5,31 @@ import { PlusIcon, XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Field as FormField, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { entryViolation, valueViolation } from "../../store/attribute-rules"
 import type { Deployment } from "../../store/schema"
 
-const KEY_RULE = /^[a-z0-9_-]{1,64}$/
+const REQUIRED_KEY = "name"
 
-type AttributeRowProps = { keyName: string; value: string; onCommit: (next: string) => void }
+type AttributeRowProps = {
+  keyName: string
+  value: string
+  removable: boolean
+  onCommit: (next: string) => void
+}
 
-const AttributeRow = ({ keyName, value, onCommit }: AttributeRowProps) => {
+const AttributeRow = ({ keyName, value, removable, onCommit }: AttributeRowProps) => {
   const [draft, setDraft] = useState(value)
+  const [violation, setViolation] = useState<string | null>(null)
   const id = `attr-${keyName}`
+  const commit = () => {
+    const next = draft.trim()
+    if (next === value) return setViolation(null)
+    const reason = valueViolation(keyName, next)
+    setViolation(reason)
+    if (reason === null) onCommit(next)
+  }
   return (
-    <FormField className="gap-1">
+    <FormField data-invalid={violation !== null || undefined} className="gap-1">
       <div className="flex items-center gap-1">
         <FieldLabel htmlFor={id} className="w-24 shrink-0 truncate font-mono text-[11px] text-muted-foreground">
           {keyName}
@@ -25,15 +39,19 @@ const AttributeRow = ({ keyName, value, onCommit }: AttributeRowProps) => {
           value={draft}
           autoComplete="off"
           spellCheck={false}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => (draft.trim() === value ? undefined : onCommit(draft.trim()))}
-          onKeyDown={(event) => (event.key === "Enter" ? onCommit(draft.trim()) : undefined)}
+          aria-invalid={violation !== null}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={commit}
+          onKeyDown={(event) => (event.key === "Enter" ? commit() : undefined)}
           className="h-7 font-mono text-xs"
         />
-        <Button variant="ghost" size="icon-xs" aria-label={`Remove ${keyName}`} onClick={() => onCommit("")}>
-          <XIcon />
-        </Button>
+        {removable ? (
+          <Button variant="ghost" size="icon-xs" aria-label={`Remove ${keyName}`} onClick={() => onCommit("")}>
+            <XIcon />
+          </Button>
+        ) : null}
       </div>
+      {violation ? <FieldError>{`${keyName} ${violation}`}</FieldError> : null}
     </FormField>
   )
 }
@@ -47,44 +65,45 @@ type AttributesEditorProps = {
 export const AttributesEditor = ({ deployment, keys, onCommit }: AttributesEditorProps) => {
   const [newKey, setNewKey] = useState("")
   const [newValue, setNewValue] = useState("")
-  const [error, setError] = useState<string | null>(null)
-  const present = keys.filter((k) => deployment.attributes[k] !== undefined)
+  const [violation, setViolation] = useState<string | null>(null)
+  const present = keys.filter((key) => deployment.attributes[key] !== undefined)
   const add = () => {
     const key = newKey.trim().toLowerCase()
-    if (!KEY_RULE.test(key)) return setError("Key: 1–64 chars, a-z 0-9 _ -")
-    if (!newValue.trim()) return setError("Value is required")
+    const reason = entryViolation(key, newValue)
+    setViolation(reason)
+    if (reason !== null) return
     onCommit(key, newValue.trim())
     setNewKey("")
     setNewValue("")
-    setError(null)
   }
   return (
     <div className="flex flex-col gap-2">
       <p className="truncate font-mono text-xs font-medium">{deployment.attributes.name}</p>
       {present.length === 0 ? <p className="text-xs text-muted-foreground">No extra attributes yet.</p> : null}
-      {present.map((k) => (
+      {present.map((key) => (
         <AttributeRow
-          key={k}
-          keyName={k}
-          value={deployment.attributes[k] ?? ""}
-          onCommit={(next) => onCommit(k, next)}
+          key={key}
+          keyName={key}
+          value={deployment.attributes[key] ?? ""}
+          removable={key !== REQUIRED_KEY}
+          onCommit={(next) => onCommit(key, next)}
         />
       ))}
-      <FormField data-invalid={error !== null || undefined} className="gap-1 border-t pt-2">
+      <FormField data-invalid={violation !== null || undefined} className="gap-1 border-t pt-2">
         <div className="flex items-center gap-1">
           <Input
             value={newKey}
-            onChange={(e) => setNewKey(e.target.value.toLowerCase())}
+            onChange={(event) => setNewKey(event.target.value.toLowerCase())}
             placeholder="key…"
             aria-label="New attribute key"
             autoComplete="off"
             spellCheck={false}
-            aria-invalid={error !== null}
+            aria-invalid={violation !== null}
             className="h-7 w-24 shrink-0 font-mono text-xs"
           />
           <Input
             value={newValue}
-            onChange={(e) => setNewValue(e.target.value)}
+            onChange={(event) => setNewValue(event.target.value)}
             placeholder="value…"
             aria-label="New attribute value"
             autoComplete="off"
@@ -95,7 +114,7 @@ export const AttributesEditor = ({ deployment, keys, onCommit }: AttributesEdito
             <PlusIcon />
           </Button>
         </div>
-        {error ? <FieldError>{error}</FieldError> : null}
+        {violation ? <FieldError>{`${newKey.trim() === "" ? "key" : newKey.trim()} ${violation}`}</FieldError> : null}
       </FormField>
     </div>
   )

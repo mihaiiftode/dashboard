@@ -5,13 +5,12 @@ from uuid import UUID, uuid4
 import pytest
 
 from app.deployments.change_feed import ChangePublisher
-from app.deployments.models import Deployment, Writable
+from app.deployments.models import Deployment, InvalidAttributes, Writable
 from app.deployments.repository import DeploymentRepository
 from app.deployments.service import (
     DeploymentDeleted,
     DeploymentNotFound,
     DeploymentService,
-    InvalidAttribute,
     StaleWrite,
 )
 
@@ -171,11 +170,11 @@ async def test_raises_not_found_when_writing_an_unknown_deployment() -> None:
         )
 
 
-async def test_rejects_a_name_of_only_whitespace() -> None:
+async def test_refuses_to_write_attributes_that_break_a_rule() -> None:
     wanted = uuid4()
     repository = repository_holding(deployment(wanted))
 
-    with pytest.raises(InvalidAttribute):
+    with pytest.raises(InvalidAttributes):
         await service_over(repository).replace(
             wanted, writable(name="   "), if_revision=None
         )
@@ -226,3 +225,52 @@ async def test_publishes_nothing_when_a_rule_rejects_the_write() -> None:
         await service.replace(wanted, writable(), if_revision=None)
 
     changes.publish.assert_not_awaited()
+
+
+async def test_updates_a_key_the_deployment_already_carries() -> None:
+    wanted = uuid4()
+    service = service_over(repository_holding(deployment(wanted)))
+
+    stored = await service.replace(
+        wanted,
+        Writable.model_validate(
+            {
+                "version": "1.0.0",
+                "status": "active",
+                "type": "worker",
+                "environment": "staging",
+                "attributes": {"name": "service-a", "team": "search"},
+            }
+        ),
+        if_revision=None,
+    )
+
+    assert stored.attributes.to_map() == {"name": "service-a", "team": "search"}
+
+
+async def test_drops_a_key_the_edit_leaves_out() -> None:
+    wanted = uuid4()
+    service = service_over(repository_holding(deployment(wanted)))
+
+    stored = await service.replace(wanted, writable(), if_revision=None)
+
+    assert "team" not in stored.attributes.to_map()
+
+
+async def test_reports_every_broken_rule_from_one_write() -> None:
+    wanted = uuid4()
+    service = service_over(repository_holding(deployment(wanted)))
+    broken = Writable.model_validate(
+        {
+            "version": "1.0.0",
+            "status": "active",
+            "type": "worker",
+            "environment": "staging",
+            "attributes": {"name": "service-a", "oncall": "nope", "Bad Key": "value"},
+        }
+    )
+
+    with pytest.raises(InvalidAttributes) as raised:
+        await service.replace(wanted, broken, if_revision=None)
+
+    assert [item.key for item in raised.value.violations] == ["oncall", "Bad Key"]

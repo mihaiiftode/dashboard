@@ -328,3 +328,50 @@ async def test_creates_the_indexes_the_dashboard_relies_on(
     ]
     expiring = [name for name, spec in indexes.items() if "expireAfterSeconds" in spec]
     assert indexes[expiring[0]]["expireAfterSeconds"] == 30 * 24 * 60 * 60
+
+
+async def test_answers_a_broken_attribute_rule_with_a_problem_per_key(
+    edit_client: AsyncClient, rows: list[Deployment]
+) -> None:
+    body = writable_body()
+    body["attributes"] = {"name": "renamed", "oncall": "not-an-email", "Bad Key": "x"}
+
+    response = await edit_client.put(
+        f"/v1/deployments/{rows[0].deployment_id}", json=body
+    )
+
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/problem+json")
+    problem = response.json()
+    assert [error["loc"] for error in problem["errors"]] == [
+        ["body", "attributes", "oncall"],
+        ["body", "attributes", "Bad Key"],
+    ]
+    assert problem["errors"][0]["msg"] == "must be an email address"
+    assert "oncall" in problem["detail"]
+
+
+async def test_keeps_the_stored_deployment_when_an_attribute_rule_fails(
+    edit_client: AsyncClient, rows: list[Deployment]
+) -> None:
+    body = writable_body()
+    body["attributes"] = {"name": ""}
+
+    await edit_client.put(f"/v1/deployments/{rows[0].deployment_id}", json=body)
+
+    stored = (await edit_client.get(f"/v1/deployments/{rows[0].deployment_id}")).json()
+    assert stored["attributes"]["name"] == "service-0"
+    assert stored["revision"] == 1
+
+
+async def test_updates_a_key_the_deployment_already_carries(
+    edit_client: AsyncClient, rows: list[Deployment]
+) -> None:
+    body = writable_body()
+    body["attributes"] = {"name": "renamed", "team": "search"}
+
+    response = await edit_client.put(
+        f"/v1/deployments/{rows[0].deployment_id}", json=body
+    )
+
+    assert response.json()["attributes"] == {"name": "renamed", "team": "search"}

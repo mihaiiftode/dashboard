@@ -24,6 +24,7 @@ from app.deployments.models import (
     Checkpoint,
     Deployment,
     DeploymentPage,
+    InvalidAttributes,
     ListLimit,
     Writable,
     etag_of,
@@ -32,7 +33,6 @@ from app.deployments.service import (
     DeploymentDeleted,
     DeploymentNotFound,
     DeploymentService,
-    InvalidAttribute,
     StaleWrite,
 )
 from app.errors import Problem, problem_response
@@ -193,15 +193,18 @@ async def deleted_handler(request: Request, exc: Exception) -> JSONResponse:
     )
 
 
-async def invalid_attribute_handler(request: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, InvalidAttribute)
+async def invalid_attributes_handler(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, InvalidAttributes)
     return problem_response(
         Problem(
             title="Unprocessable Content",
             status=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
             instance=request.url.path,
-            errors=[{"loc": ["body", "attributes", exc.key], "msg": exc.reason}],
+            errors=[
+                {"loc": ["body", "attributes", item.key], "msg": item.reason}
+                for item in exc.violations
+            ],
         )
     )
 
@@ -218,5 +221,5 @@ async def stale_write_handler(request: Request, exc: Exception) -> JSONResponse:
 def register_deployment_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(DeploymentNotFound, not_found_handler)
     app.add_exception_handler(DeploymentDeleted, deleted_handler)
-    app.add_exception_handler(InvalidAttribute, invalid_attribute_handler)
+    app.add_exception_handler(InvalidAttributes, invalid_attributes_handler)
     app.add_exception_handler(StaleWrite, stale_write_handler)

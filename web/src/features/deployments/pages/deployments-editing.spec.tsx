@@ -102,4 +102,17 @@ describe("editing a deployment", () => {
 
     await waitFor(() => expect(screen.queryAllByRole("status", { name: "Loading" })).toHaveLength(0))
   })
+
+  it("sends an attribute added in the popover through the same write path", async () => {
+    const rows = [deployment(0, { attributes: { oncall: "on@example.com" } }), ...deployments(8).slice(1)]
+    const { user, table, api } = await openBrowser(rows)
+
+    await user.click(within(table).getByRole("button", { name: /edit attributes of service-000/i }))
+    await user.type(screen.getByRole("textbox", { name: "New attribute key" }), "cost_centre")
+    await user.type(screen.getByRole("textbox", { name: "New attribute value" }), "cc-42")
+    await user.click(screen.getByRole("button", { name: "Add attribute" }))
+
+    await waitFor(() => expect(api.rowFor(rows[0].deployment_id)?.attributes.cost_centre).toBe("cc-42"))
+    expect(api.writes[0]).toMatchObject({ id: rows[0].deployment_id, expectedRevision: 1 })
+  })
 })

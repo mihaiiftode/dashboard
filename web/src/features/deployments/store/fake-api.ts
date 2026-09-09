@@ -4,6 +4,7 @@ import type { Checkpoint, Deployment, DeploymentPage } from "./schema"
 
 const NOT_FOUND = 404
 const CONFLICT = 409
+const UNPROCESSABLE = 422
 const STAMP_STEP_MS = 1000
 
 export type FakeDeploymentsApi = DeploymentsApi & {
@@ -13,6 +14,7 @@ export type FakeDeploymentsApi = DeploymentsApi & {
   store: (row: Deployment) => void
   rowFor: (id: string) => Deployment | undefined
   holdWrites: () => () => void
+  refuseWrites: (detail: string) => void
   connect: () => void
   emit: (documents: Deployment[]) => void
   drop: () => void
@@ -27,6 +29,7 @@ export const createFakeDeploymentsApi = (initial: Deployment[] = []): FakeDeploy
     rows = [...rows.filter((current) => current.deployment_id !== row.deployment_id), row]
   }
   let held: Promise<void> | null = null
+  let refusal: string | null = null
   const listeners = new Set<ChangeListeners>()
   return {
     requests,
@@ -60,6 +63,9 @@ export const createFakeDeploymentsApi = (initial: Deployment[] = []): FakeDeploy
     get subscribers() {
       return listeners.size
     },
+    refuseWrites: (detail) => {
+      refusal = detail
+    },
     holdWrites: () => {
       let release = () => undefined as void
       held = new Promise<void>((resolve) => {
@@ -84,6 +90,7 @@ export const createFakeDeploymentsApi = (initial: Deployment[] = []): FakeDeploy
       if (held) await held
       const current = rows.find((row) => row.deployment_id === request.id)
       if (!current) throw new ApiError(NOT_FOUND, "Not Found")
+      if (refusal !== null) throw new ApiError(UNPROCESSABLE, "Unprocessable Content", refusal)
       if (current.deleted_at !== null) throw new ApiError(CONFLICT, "Conflict")
       if (request.expectedRevision !== null && current.revision !== request.expectedRevision) {
         return { outcome: "conflict", deployment: current }

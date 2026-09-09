@@ -5,7 +5,7 @@ export const TYPES = ["web_service", "worker", "cron_job"] as const
 export const ENVIRONMENTS = ["production", "staging", "development"] as const
 
 export const ATTRIBUTE_KEY_RULE = /^[a-z0-9_-]{1,64}$/
-const ATTRIBUTE_VALUE_MAX = 512
+export const ATTRIBUTE_VALUE_MAX = 512
 
 const attributeValue = z.string().min(1).max(ATTRIBUTE_VALUE_MAX)
 
