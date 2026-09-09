@@ -15,7 +15,10 @@ Applies to `api/` and `web/`. Reviews cite these rules by heading.
 
 - One file, one responsibility. Split when a file gains a second reason to change.
 - Small, not tiny. A file under roughly thirty lines merges into its neighbour unless it is a real seam with two adapters.
-- Folder structure follows the layers already agreed: `api/app/deployments/{router,service,repository,feed,models}.py`, `web/src/{app,features/deployments,lib/data,lib/api,lib/schemas.ts}`. New concerns get a sibling, not a new hierarchy.
+- Folder structure follows the layers already agreed. Backend: `api/app/deployments/{router,service,repository,feed,models}.py`. Frontend: `web/src/app` holds Next.js route files only, `web/src/features/deployments/{pages,components,hooks,query,store}` holds the feature, `web/src/components/{ui,shell}` holds shadcn registry files and the application shell, `web/src/lib/{api,env,logger,notify,schemas}` holds cross-feature infrastructure, `web/src/test` holds the test harness. New concerns get a sibling, not a new hierarchy.
+- A feature exposes its public surface through `features/<name>/main.ts`. Nothing outside the feature imports its `pages`, `components`, `hooks`, `query`, or `store` directly. Inside the feature, imports are relative.
+- Route files under `web/src/app` stay thin: they read URL state and render a feature page with plain props. A page never imports the router.
+- Files are kebab-case, one component per file, named exports only. `export default` appears only where a Next.js route file requires it.
 
 ## Backend (FastAPI)
 
@@ -28,11 +31,19 @@ Applies to `api/` and `web/`. Reviews cite these rules by heading.
 ## Frontend (Next.js)
 
 - Classes where an object has state or fills a seam: the API client, the store. Components and hooks stay functions.
+- Components are `export const Name = (props: NameProps) => ...` with a named `NameProps` type once props exceed three fields. React imports are named, `ref` is an ordinary prop. shadcn registry files under `components/ui` keep upstream style verbatim.
+- Presentational components receive data and callbacks as props and never touch the store, the router, or `notify`. Container hooks bind the store and hand props down. Cell renderers take a value and an `onCommit` callback.
+- Column definitions come from one factory in the feature that takes the field schema and visible Fields and returns TanStack column defs. Each cell renderer is its own file under `components/cells`.
+- Every primitive root and every editable control carries `data-slot`. Click forwarding and tests select on `data-slot`, never on class names, titles, or text.
+- URL state goes through nuqs parsers. `q` is the only parameter. Updates push history so back, forward, and reload restore the view.
+- Loading, error, and empty states render through one boundary component per feature root taking `loading`, `error`, `isEmpty`, and children. No `if (loading)` ladders in pages.
+- Derive state during render, never in effects. `useMemo` context values and objects passed to memoized children. `useCallback` and `memo` only where a memoized child or a hook dependency needs a stable reference. No components defined inside components. Map and Set for repeated lookups. Ternaries, not `&&`, for conditional JSX.
+- `cn()` for every class merge, CVA for variants.
 - One `ApiError` type parsed from problem+json in the API adapter. Features never inspect raw responses.
 - One error boundary per feature root. User-facing failures go through a single `notify` module. Replication failures and conflicts surface through `useSyncStatus`, never through ad hoc state.
 - One `logger` module built on LogTape with levels and sinks. Nothing below warn is emitted in production. No stray `console.log`.
 - Environment variables read through T3 Env, never `process.env` directly.
-- TypeScript strict, no `any`, no non-null assertions outside tests. Oxlint and Oxfmt clean, Knip reports no unused files or dependencies.
+- TypeScript strict, no `any`, no non-null assertions outside tests. Oxlint and Oxfmt clean, Knip reports no unused files or dependencies. Oxlint has no warn tier: every category and rule is error or off, and a rule turned off records its reason in the ticket that disabled it.
 
 ## UI
 
@@ -54,6 +65,9 @@ Applies to `api/` and `web/`. Reviews cite these rules by heading.
 
 - One test per stated behaviour. No tests for getters, pass-throughs, or framework wiring.
 - Tests cross a module's interface. Service tests use the in-memory repository. Repository contract tests run once, parametrised over the Mongo adapter on testcontainers and the in-memory adapter. Router tests use ASGI transport over the real service and the fake repository. Store tests on the client use the fake API adapter.
+- Test files are `*.spec.ts` or `*.spec.tsx`, colocated next to the source.
 - Component tests render a feature root over the store backed by the fake API adapter, with React Testing Library. They assert what a user sees and does: rows, edits, toasts, restores. No snapshot tests, no tests of styling.
+- Component tests render through `test/render.tsx`, which wraps providers and the fake API store, and drive input through `test/user.ts` with delays disabled. `test/setup.ts` stubs the jsdom gaps Base UI needs: `matchMedia`, `requestAnimationFrame`, `scrollIntoView`, `PointerEvent`.
+- Pure modules ship their spec in the same change. The query module gets no UI wiring until its grammar, resolver, and suggester specs pass.
 - No mock-was-called assertions. Assert on results and state.
 - A test that could not fail for a plausible bug does not get written.
