@@ -23,7 +23,7 @@ export const valueIndexOf = (groups: Iterable<unknown>): ValueIndex => {
     byValue.set(value, counted)
     covered += counted
   }
-  const values = [...byValue.entries()].sort(byRowsThenValue).map(([value, rows]) => ({ value, rows }))
+  const values = [...byValue.entries()].toSorted(byRowsThenValue).map(([value, rows]) => ({ value, rows }))
   return { values, byValue, covered }
 }
 

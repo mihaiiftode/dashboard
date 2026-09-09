@@ -1,8 +1,8 @@
 import { z } from "zod"
 import { deploymentSchema } from "./schema"
 
-export const PRIMARY_KEY = "deployment_id"
-export const SCHEMA_VERSION = 1
+const PRIMARY_KEY = "deployment_id"
+const SCHEMA_VERSION = 1
 export const migrationStrategies = { 1: (document: Record<string, unknown>) => ({ ...document, revision: 1 }) }
 const PRIMARY_KEY_MAX_LENGTH = 36
 

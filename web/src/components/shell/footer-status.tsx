@@ -11,7 +11,7 @@ export type FooterStatus = {
 const connecting: FooterStatus = { sync: "connecting" }
 
 const StatusContext = createContext<FooterStatus>(connecting)
-const PublishContext = createContext<(status: FooterStatus) => void>(() => undefined)
+const PublishContext = createContext<(status: FooterStatus) => void>(() => {})
 
 export const FooterStatusProvider = ({ children }: { children: ReactNode }) => {
   const [status, setStatus] = useState(connecting)

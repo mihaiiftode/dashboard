@@ -67,14 +67,15 @@ export const createFakeDeploymentsApi = (initial: Deployment[] = []): FakeDeploy
       refusal = detail
     },
     holdWrites: () => {
-      let release = () => undefined as void
+      // oxlint-disable-next-line unicorn/consistent-function-scoping
+      let letGo = () => undefined as void
       held = new Promise<void>((resolve) => {
-        release = () => {
+        letGo = () => {
           held = null
           resolve()
         }
       })
-      return release
+      return () => letGo()
     },
     list: async (request) => {
       requests.push(request)
@@ -126,7 +127,7 @@ const nextStamp = (rows: Deployment[]): string => {
 }
 
 const page = (rows: Deployment[], { after, limit }: ListRequest): DeploymentPage => {
-  const ordered = [...rows].sort(byCheckpoint)
+  const ordered = rows.toSorted(byCheckpoint)
   const remaining = after ? ordered.filter((row) => byCheckpoint(row, after) > 0) : ordered
   const items = remaining.slice(0, limit)
   const last = items.at(-1)

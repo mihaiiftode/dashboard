@@ -7,7 +7,7 @@ import { renderWithProviders } from "@/test/render"
 import { setupUser } from "@/test/user"
 import { DeploymentsPage } from "./deployments-page"
 
-const noop = () => undefined
+const noop = () => {}
 
 const TWO_ROUND_TRIPS = 15_000
 
@@ -75,7 +75,7 @@ describe("deleting and restoring", () => {
     expect(within(table).getByText("service-001")).toBeVisible()
     expect(within(table).queryByText("service-000")).toBeNull()
     expect(within(table).getByRole("columnheader", { name: "Deleted" })).toBeVisible()
-    expect(within(table).getByText(/28d left/)).toBeVisible()
+    expect(within(table).getByText(/28d left/u)).toBeVisible()
     expect(within(table).getByRole("button", { name: "Edit name: service-001" })).toBeDisabled()
     expect(within(table).getByRole("button", { name: "Restore service-001" })).toBeVisible()
   })
@@ -129,6 +129,6 @@ describe("deleting and restoring", () => {
     const { table } = await open("group:cost_centre", rows)
 
     expect(within(table).getByText("cc-42")).toBeVisible()
-    expect(within(table).getAllByRole("button", { name: /collapse group/i }).length).toBeGreaterThan(0)
+    expect(within(table).getAllByRole("button", { name: /collapse group/iu }).length).toBeGreaterThan(0)
   })
 })

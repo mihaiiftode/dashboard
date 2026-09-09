@@ -71,12 +71,12 @@ const subscribeWithEventSource =
   (baseUrl: string) =>
   ({ onEvent, onOpen, onError }: ChangeListeners) => {
     const source = new EventSource(eventsUrl(baseUrl))
-    source.onopen = () => onOpen()
-    source.onerror = () => onError()
-    source.onmessage = (message: MessageEvent<string>) => {
+    source.addEventListener("open", () => onOpen())
+    source.addEventListener("error", () => onError())
+    source.addEventListener("message", (message: MessageEvent<string>) => {
       const parsed = changeEventSchema.safeParse(JSON.parse(message.data))
       if (parsed.success) onEvent(parsed.data)
-    }
+    })
     return () => source.close()
   }
 

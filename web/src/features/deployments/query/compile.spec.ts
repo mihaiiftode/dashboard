@@ -32,35 +32,35 @@ const rows = deployments(12)
 
 describe("compileQuery", () => {
   it("returns every live deployment for an empty query, newest first", async () => {
-    expect(await namesFor("", rows)).toEqual([...rows].reverse().map((row) => row.attributes.name))
+    expect(await namesFor("", rows)).toEqual(rows.toReversed().map((row) => row.attributes.name))
   })
 
   it("matches a facet exactly", async () => {
     const failed = rows.filter((row) => row.status === "failed").map((row) => row.attributes.name)
-    expect((await namesFor("status:failed", rows)).sort()).toEqual(failed.sort())
+    expect((await namesFor("status:failed", rows)).toSorted()).toEqual(failed.toSorted())
   })
 
   it("treats commas as alternatives", async () => {
     const either = rows
       .filter((row) => row.status === "failed" || row.status === "stopped")
       .map((row) => row.attributes.name)
-    expect((await namesFor("status:failed,stopped", rows)).sort()).toEqual(either.sort())
+    expect((await namesFor("status:failed,stopped", rows)).toSorted()).toEqual(either.toSorted())
   })
 
   it("resolves a facet alias", async () => {
-    expect((await namesFor("env:prod", rows)).sort()).toEqual((await namesFor("env:production", rows)).sort())
+    expect((await namesFor("env:prod", rows)).toSorted()).toEqual((await namesFor("env:production", rows)).toSorted())
   })
 
   it("intersects separate tokens", async () => {
     const both = rows
       .filter((row) => row.status === "failed" && row.type === "worker")
       .map((row) => row.attributes.name)
-    expect((await namesFor("status:failed type:worker", rows)).sort()).toEqual(both.sort())
+    expect((await namesFor("status:failed type:worker", rows)).toSorted()).toEqual(both.toSorted())
   })
 
   it("excludes a negated token", async () => {
     const rest = rows.filter((row) => row.status !== "failed").map((row) => row.attributes.name)
-    expect((await namesFor("-status:failed", rows)).sort()).toEqual(rest.sort())
+    expect((await namesFor("-status:failed", rows)).toSorted()).toEqual(rest.toSorted())
   })
 
   it("matches bare text against the haystack", async () => {
@@ -86,7 +86,7 @@ describe("compileQuery", () => {
     const expected = rows
       .filter((row) => row.attributes.name.startsWith("service-00"))
       .map((row) => row.attributes.name)
-    expect((await namesFor("name:service-00*", rows)).sort()).toEqual(expected.sort())
+    expect((await namesFor("name:service-00*", rows)).toSorted()).toEqual(expected.toSorted())
   })
 
   it("compares relative dates against the age of the field", async () => {
@@ -112,12 +112,12 @@ describe("compileQuery", () => {
 
   it("orders by a directive in both directions", async () => {
     const ascending = await namesFor("sort:name", rows)
-    expect(ascending).toEqual([...ascending].sort())
-    expect(await namesFor("sort:-name", rows)).toEqual([...ascending].reverse())
+    expect(ascending).toEqual(ascending.toSorted())
+    expect(await namesFor("sort:-name", rows)).toEqual(ascending.toReversed())
   })
 
   it("ignores an invalid token instead of narrowing on it", async () => {
-    expect((await namesFor("nonsense:1", rows)).sort()).toEqual((await namesFor("", rows)).sort())
+    expect((await namesFor("nonsense:1", rows)).toSorted()).toEqual((await namesFor("", rows)).toSorted())
   })
 
   it("hides a deployment whose retention window has run out", async () => {

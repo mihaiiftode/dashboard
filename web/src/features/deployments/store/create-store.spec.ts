@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { deletedDaysAgo, deployment, deployments } from "@/test/deployments"
 import { createFakeDeploymentsApi } from "./fake-api"
 import { createDeploymentsStore, type DeploymentsStore } from "./create-store"
@@ -14,20 +14,24 @@ const storeOver = async (rows: Deployment[], pullBatchSize?: number) => {
     multiInstance: false,
     pullBatchSize,
   })
-  await store.whenFirstPullSettles()
-  await store.whenInSync()
   await store.collection.preload()
+  await holds(store, rows.length)
   return { api, store }
 }
 
-const idsIn = (current: DeploymentsStore) => [...current.collection.values()].map((row) => row.deployment_id).sort()
+const holds = (current: DeploymentsStore, count: number) =>
+  vi.waitFor(() => expect(current.collection.size).toBe(count))
+
+const idsIn = (current: DeploymentsStore) => [...current.collection.values()].map((row) => row.deployment_id).toSorted()
 
 const rowIn = (current: DeploymentsStore, id: string) =>
   [...current.collection.values()].find((row) => row.deployment_id === id)
 
 const settle = async (current: DeploymentsStore) => {
-  await current.whenInSync()
-  await new Promise((resolve) => setTimeout(resolve, 20))
+  await vi.waitFor(() => expect(current.sync.snapshot().pendingIds.size).toBe(0))
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, 20)
+  })
 }
 
 afterEach(async () => {
@@ -41,7 +45,7 @@ describe("createDeploymentsStore", () => {
 
     const { store: current } = await storeOver(rows)
 
-    expect(idsIn(current)).toEqual(rows.map((row) => row.deployment_id).sort())
+    expect(idsIn(current)).toEqual(rows.map((row) => row.deployment_id).toSorted())
   })
 
   it("walks the checkpoint pages until the dataset is exhausted", async () => {
@@ -49,7 +53,7 @@ describe("createDeploymentsStore", () => {
 
     const { api, store: current } = await storeOver(rows, 2)
 
-    expect(idsIn(current)).toEqual(rows.map((row) => row.deployment_id).sort())
+    expect(idsIn(current)).toEqual(rows.map((row) => row.deployment_id).toSorted())
     expect(api.requests.map((request) => request.after?.deployment_id ?? null)).toEqual([
       null,
       rows[1].deployment_id,
@@ -63,22 +67,21 @@ describe("createDeploymentsStore", () => {
     const api = createFakeDeploymentsApi(rows)
 
     const first = await createDeploymentsStore({ api, databaseName, multiInstance: false })
-    await first.whenFirstPullSettles()
-    await first.whenInSync()
+    await first.collection.preload()
+    await holds(first, rows.length)
     await first.destroy()
     const requestsAfterFirstRun = api.requests.length
 
     store = await createDeploymentsStore({ api, databaseName, multiInstance: false })
-    await store.whenFirstPullSettles()
-    await store.whenInSync()
     await store.collection.preload()
+    await holds(store, rows.length)
 
     const resumed = api.requests.slice(requestsAfterFirstRun)
     expect(resumed[0].after).toEqual({
       updated_at: rows[2].updated_at,
       deployment_id: rows[2].deployment_id,
     })
-    expect(idsIn(store)).toEqual(rows.map((row) => row.deployment_id).sort())
+    expect(idsIn(store)).toEqual(rows.map((row) => row.deployment_id).toSorted())
   })
 
   it("keeps deleted deployments in the collection without marking them deleted in storage", async () => {
@@ -229,7 +232,7 @@ describe("createDeploymentsStore", () => {
       current.collection.update(rows[0].deployment_id, (draft) => {
         draft.attributes.oncall = "not-an-email"
       }),
-    ).toThrow(/email/)
+    ).toThrow(/email/u)
     expect(api.writes).toHaveLength(0)
   })
 

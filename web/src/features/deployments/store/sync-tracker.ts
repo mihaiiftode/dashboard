@@ -1,7 +1,7 @@
 import type { WriteConflict } from "./conflict"
 import type { Deployment } from "./schema"
 
-export type ConnectionState = "connecting" | "live" | "reconnecting" | "offline"
+type ConnectionState = "connecting" | "live" | "reconnecting" | "offline"
 
 export type WriteRejection = { deployment: Deployment; detail: string }
 

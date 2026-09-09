@@ -14,10 +14,10 @@ if (typeof window.matchMedia !== "function") {
     matches: false,
     media: query,
     onchange: null,
-    addListener: () => undefined,
-    removeListener: () => undefined,
-    addEventListener: () => undefined,
-    removeEventListener: () => undefined,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
     dispatchEvent: () => false,
   })
 }
@@ -26,7 +26,7 @@ window.requestAnimationFrame = (callback) => window.setTimeout(() => callback(pe
 window.cancelAnimationFrame = (handle) => window.clearTimeout(handle)
 
 if (typeof window.HTMLElement.prototype.scrollIntoView !== "function") {
-  window.HTMLElement.prototype.scrollIntoView = () => undefined
+  window.HTMLElement.prototype.scrollIntoView = () => {}
 }
 
 if (typeof window.PointerEvent !== "function") {
@@ -69,6 +69,6 @@ window.Element.prototype.getBoundingClientRect = function boundingRect(this: Ele
     bottom: VIEWPORT.height,
     x: 0,
     y: 0,
-    toJSON: () => undefined,
+    toJSON: () => {},
   }
 }

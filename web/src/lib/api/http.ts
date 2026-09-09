@@ -1,6 +1,6 @@
 import type { ZodType } from "zod"
 
-export type Problem = {
+type Problem = {
   type: string
   title: string
   status: number

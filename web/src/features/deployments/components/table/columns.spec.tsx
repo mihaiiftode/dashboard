@@ -4,10 +4,10 @@ import { buildSchema } from "../../query/schema"
 import { columnsFor, type RowActions } from "./columns"
 
 const actions: RowActions = {
-  onSetAttribute: () => undefined,
-  onDelete: () => undefined,
-  onRestore: () => undefined,
-  onCopyId: () => undefined,
+  onSetAttribute: () => {},
+  onDelete: () => {},
+  onRestore: () => {},
+  onCopyId: () => {},
 }
 
 const schema = buildSchema(deployments(200))

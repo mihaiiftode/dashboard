@@ -7,7 +7,7 @@ export const useSlashFocus = (elementId: string) => {
     const focusOnSlash = (event: KeyboardEvent) => {
       if (event.key !== "/" || isTyping(event.target)) return
       event.preventDefault()
-      document.getElementById(elementId)?.focus()
+      document.querySelector<HTMLElement>(`#${elementId}`)?.focus()
     }
     window.addEventListener("keydown", focusOnSlash)
     return () => window.removeEventListener("keydown", focusOnSlash)

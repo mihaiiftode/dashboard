@@ -1,8 +1,4 @@
-import type { Deployment } from "@/features/deployments/store/schema"
-
-const STATUSES = ["active", "failed", "stopped"] as const
-const TYPES = ["web_service", "worker", "cron_job"] as const
-const ENVIRONMENTS = ["production", "staging", "development"] as const
+import { ENVIRONMENTS, STATUSES, TYPES, type Deployment } from "@/features/deployments/store/schema"
 const TEAMS = ["payments", "checkout", "identity", "platform", "search"] as const
 const REGIONS = ["us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1"] as const
 const PRIORITIES = ["critical", "high", "medium", "low"] as const
@@ -23,7 +19,7 @@ const hexDigitsFor = (index: number): string => {
   return digits.slice(0, 32)
 }
 
-export const deploymentId = (index: number): string => {
+const deploymentId = (index: number): string => {
   const hex = hexDigitsFor(index)
   const withVersion = `${hex.slice(0, 12)}4${hex.slice(13, 16)}`
   const withVariant = `8${hex.slice(17, 20)}`

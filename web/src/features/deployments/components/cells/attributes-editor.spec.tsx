@@ -7,7 +7,7 @@ import { AttributesEditor } from "./attributes-editor"
 const KEYS = ["name", "team", "oncall", "cost_centre"]
 
 const openEditor = (overrides: Parameters<typeof deployment>[1] = {}) => {
-  const onCommit = vi.fn()
+  const onCommit = vi.fn<(key: string, value: string) => void>()
   const row = deployment(1, overrides)
   render(<AttributesEditor deployment={row} keys={KEYS} onCommit={onCommit} />)
   return { user: setupUser(), onCommit, row }
@@ -56,7 +56,7 @@ describe("AttributesEditor", () => {
     await user.type(screen.getByRole("textbox", { name: "New attribute value" }), "value")
     await user.click(screen.getByRole("button", { name: "Add attribute" }))
 
-    expect(screen.getByText(/must be 1 to 64 characters of a-z, 0-9, underscore or hyphen/)).toBeVisible()
+    expect(screen.getByText(/must be 1 to 64 characters of a-z, 0-9, underscore or hyphen/u)).toBeVisible()
     expect(onCommit).not.toHaveBeenCalled()
   })
 

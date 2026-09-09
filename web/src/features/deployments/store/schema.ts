@@ -4,12 +4,12 @@ export const STATUSES = ["active", "failed", "stopped"] as const
 export const TYPES = ["web_service", "worker", "cron_job"] as const
 export const ENVIRONMENTS = ["production", "staging", "development"] as const
 
-export const ATTRIBUTE_KEY_RULE = /^[a-z0-9_-]{1,64}$/
+export const ATTRIBUTE_KEY_RULE = /^[a-z0-9_-]{1,64}$/u
 export const ATTRIBUTE_VALUE_MAX = 512
 
 const attributeValue = z.string().min(1).max(ATTRIBUTE_VALUE_MAX)
 
-export const attributesSchema = z
+const attributesSchema = z
   .object({
     name: attributeValue,
     description: attributeValue.optional(),
@@ -42,7 +42,7 @@ export const deploymentSchema = z.object({
   deleted_at: z.iso.datetime({ offset: true }).nullable(),
 })
 
-export const checkpointSchema = z.object({
+const checkpointSchema = z.object({
   updated_at: z.iso.datetime({ offset: true }),
   deployment_id: z.uuid(),
 })
@@ -57,7 +57,7 @@ export const deploymentPageSchema = z.object({
   checkpoint: checkpointSchema.nullable(),
 })
 
-export const writableSchema = deploymentSchema.pick({
+const writableSchema = deploymentSchema.pick({
   version: true,
   status: true,
   type: true,
@@ -67,7 +67,6 @@ export const writableSchema = deploymentSchema.pick({
 
 export const writableOf = (deployment: Deployment): WritableDeployment => writableSchema.parse(deployment)
 
-export type Attributes = z.infer<typeof attributesSchema>
 export type WritableDeployment = z.infer<typeof writableSchema>
 export type Deployment = z.infer<typeof deploymentSchema>
 export type Checkpoint = z.infer<typeof checkpointSchema>

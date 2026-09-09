@@ -40,7 +40,7 @@ const renderBar = (props: HarnessProps = {}) =>
     </TooltipProvider>,
   )
 
-const searchBox = () => screen.getByRole("combobox", { name: /search and filter/i })
+const searchBox = () => screen.getByRole("combobox", { name: /search and filter/iu })
 
 describe("QueryBar", () => {
   it("shows the number of rows behind a suggested value", async () => {
@@ -50,7 +50,7 @@ describe("QueryBar", () => {
     await user.click(searchBox())
     await user.type(searchBox(), "status:")
 
-    const option = await screen.findByRole("option", { name: /status:active/ })
+    const option = await screen.findByRole("option", { name: /status:active/u })
     expect(within(option).getByText("7")).toBeVisible()
   })
 
@@ -60,7 +60,7 @@ describe("QueryBar", () => {
 
     await user.click(searchBox())
     await user.type(searchBox(), "status:fai")
-    await user.click(await screen.findByRole("option", { name: /status:failed/ }))
+    await user.click(await screen.findByRole("option", { name: /status:failed/u }))
 
     expect(searchBox()).toHaveValue("status:failed ")
   })
@@ -71,7 +71,7 @@ describe("QueryBar", () => {
 
     await user.click(searchBox())
     await user.type(searchBox(), "name:pay")
-    expect(await screen.findByRole("option", { name: /matches anywhere/ })).toBeVisible()
+    expect(await screen.findByRole("option", { name: /matches anywhere/u })).toBeVisible()
     await user.keyboard("{Enter}")
 
     expect(searchBox()).toHaveValue("name:pay")
@@ -84,7 +84,7 @@ describe("QueryBar", () => {
 
     await user.click(searchBox())
     await user.type(searchBox(), "status:")
-    await screen.findByRole("option", { name: /status:active/ })
+    await screen.findByRole("option", { name: /status:active/u })
     await user.keyboard("{ArrowDown}{Enter}")
 
     expect(searchBox()).toHaveValue("status:failed ")
@@ -96,7 +96,7 @@ describe("QueryBar", () => {
 
     await user.click(searchBox())
     await user.type(searchBox(), "status:")
-    await screen.findByRole("option", { name: /status:active/ })
+    await screen.findByRole("option", { name: /status:active/u })
     await user.keyboard("{Escape}")
 
     expect(screen.queryByRole("listbox")).toBeNull()

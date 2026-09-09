@@ -1,4 +1,5 @@
 import { quoteIfNeeded, spanAt, type Span } from "./grammar"
+import { DELETED_SCOPE } from "./resolve"
 import { groupCandidates, resolveKey, type Field, type FieldKind, type Schema } from "./schema"
 import { coveredBy, topValues, type ValueIndex } from "./value-index"
 
@@ -28,9 +29,8 @@ const DIRECTIVE_DETAIL: Record<string, string> = {
 }
 const DIRECTIVE_KEYS = Object.keys(DIRECTIVE_DETAIL)
 const AGES = ["<24h", "<7d", "<30d", ">30d", ">90d"]
-const DELETED_SCOPE = "deleted"
 const VALUE_LIMIT = 12
-const INDEXED_KINDS: FieldKind[] = ["enum", "string"]
+const INDEXED_KINDS = new Set<FieldKind>(["enum", "string"])
 
 type Cursor = {
   span: Span | null
@@ -54,7 +54,7 @@ export const indexFieldAt = (query: string, caret: number, schema: Schema): Fiel
   const { key } = cursorAt(query, caret)
   if (key === null || DIRECTIVE_KEYS.includes(key)) return null
   const field = resolveKey(schema, key)
-  return field && INDEXED_KINDS.includes(field.kind) ? field : null
+  return field && INDEXED_KINDS.has(field.kind) ? field : null
 }
 
 const cursorAt = (query: string, caret: number): Cursor => {
@@ -67,7 +67,7 @@ const cursorAt = (query: string, caret: number): Cursor => {
     return { span, raw, prefix, body, key: null, rest: "", partial: body.toLowerCase(), comparator: "", chosen: [] }
   const rest = body.slice(colon + 1)
   const parts = rest.split(",")
-  const typed = parts[parts.length - 1]
+  const typed = parts.at(-1) ?? ""
   const comparator = typed.startsWith("<") || typed.startsWith(">") ? typed.slice(0, 1) : ""
   return {
     span,

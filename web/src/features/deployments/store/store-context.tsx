@@ -8,14 +8,14 @@ import { createDeploymentsStore, type DeploymentsStore } from "./create-store"
 
 const log = createLogger("deployments", "store")
 
-export type StoreState =
+type StoreState =
   | { status: "loading" }
   | { status: "ready"; store: DeploymentsStore }
   | { status: "error"; error: Error }
 
 type StoreContextValue = StoreState & { retry: () => void }
 
-const StoreContext = createContext<StoreContextValue>({ status: "loading", retry: () => undefined })
+const StoreContext = createContext<StoreContextValue>({ status: "loading", retry: () => {} })
 
 export type DeploymentsStoreProviderProps = {
   api?: DeploymentsApi
@@ -45,8 +45,7 @@ const OpenStore = ({ api, databaseName, retry, children }: OpenStoreProps) => {
       .then((store) => {
         opened = store
         if (abandoned) return store.destroy()
-        setState({ status: "ready", store })
-        return undefined
+        return setState({ status: "ready", store })
       })
       .catch((error: Error) => {
         log.error("store failed to open: {message}", { message: error.message })

@@ -30,7 +30,7 @@ export function splitTokens(query: string): Span[] {
 }
 
 function unquote(s: string): string {
-  return s.replace(/^"([\s\S]*)"$/, "$1").replace(/\\(["\\])/g, "$1")
+  return s.replace(/^"([\s\S]*)"$/u, "$1").replaceAll(/\\(["\\])/gu, "$1")
 }
 
 export function parseToken(raw: string): Token {
@@ -90,7 +90,7 @@ export function upsertDirective(query: string, key: "group" | "sort", value: str
 }
 
 export function quoteIfNeeded(v: string): string {
-  return /[\s",]/.test(v) ? `"${v.replace(/"/g, '\\"')}"` : v
+  return /[\s",]/u.test(v) ? `"${v.replaceAll('"', '\\"')}"` : v
 }
 
 export function addValue(query: string, key: string, value: string, negate = false): string {

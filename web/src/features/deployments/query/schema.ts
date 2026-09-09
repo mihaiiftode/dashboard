@@ -52,7 +52,7 @@ const ALIASES: Record<string, string> = {
   deleted_at: "deleted",
 }
 
-export const ATTRIBUTE_ORDER = ["name", "description", "team", "region", "priority", "language", "framework", "oncall"]
+const ATTRIBUTE_ORDER = ["name", "description", "team", "region", "priority", "language", "framework", "oncall"]
 
 export type Schema = {
   fields: Field[]
@@ -65,7 +65,7 @@ export type Schema = {
 
 const CHIP_MAX_DISTINCT = 12
 const PROMOTE_COVERAGE = 0.33
-export const FIXED_VISIBLE = ["id", "status", "type", "env", "version", "creator", "created"]
+const FIXED_VISIBLE = ["id", "status", "type", "env", "version", "creator", "created"]
 
 export function isChipField(schema: Schema, field: Field): boolean {
   if (!field.attribute || field.key === "name" || field.key === "description") return false
@@ -85,7 +85,7 @@ export function buildSchema(rows: Deployment[]): Schema {
   for (const d of rows)
     for (const k of Object.keys(d.attributes))
       if (d.attributes[k] !== undefined) counts.set(k, (counts.get(k) ?? 0) + 1)
-  const attributeKeys = [...counts.keys()].sort((a, b) => {
+  const attributeKeys = [...counts.keys()].toSorted((a, b) => {
     const ia = ATTRIBUTE_ORDER.indexOf(a)
     const ib = ATTRIBUTE_ORDER.indexOf(b)
     if (ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
@@ -121,10 +121,10 @@ export function buildSchema(rows: Deployment[]): Schema {
   }
 }
 
-const UNGROUPABLE_KINDS: FieldKind[] = ["id", "date"]
+const UNGROUPABLE_KINDS = new Set<FieldKind>(["id", "date"])
 
 export function groupCandidates(schema: Schema): Field[] {
-  return schema.fields.filter((field) => !UNGROUPABLE_KINDS.includes(field.kind) && field.key !== "description")
+  return schema.fields.filter((field) => !UNGROUPABLE_KINDS.has(field.kind) && field.key !== "description")
 }
 
 export function resolveKey(schema: Schema, raw: string): Field | undefined {
@@ -139,5 +139,5 @@ const OPTIONS_MAX = 40
 export function optionsFor(schema: Schema, key: string): ValueOption[] {
   const values = schema.distinct.get(key)
   if (!values || values.size > OPTIONS_MAX) return []
-  return [...values.entries()].sort((a, b) => b[1] - a[1]).map(([value, count]) => ({ value, count }))
+  return [...values.entries()].toSorted((a, b) => b[1] - a[1]).map(([value, count]) => ({ value, count }))
 }

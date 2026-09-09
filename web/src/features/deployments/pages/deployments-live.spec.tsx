@@ -5,7 +5,7 @@ import { deployments } from "@/test/deployments"
 import { renderWithProviders } from "@/test/render"
 import { DeploymentsPage } from "./deployments-page"
 
-const noop = () => undefined
+const noop = () => {}
 
 const findTable = () => screen.findByRole("table", undefined, { timeout: 5000 })
 

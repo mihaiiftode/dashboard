@@ -9,7 +9,7 @@ describe("FooterBar", () => {
     const footer = screen.getByRole("contentinfo")
     expect(within(footer).getByRole("status", { name: "Matched deployments" })).toHaveTextContent("—")
     expect(within(footer).getByText("connecting")).toBeVisible()
-    expect(within(footer).queryByText(/total/)).toBeNull()
+    expect(within(footer).queryByText(/total/u)).toBeNull()
   })
 
   it("names the connection state for assistive technology", () => {

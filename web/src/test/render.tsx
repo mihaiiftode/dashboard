@@ -9,7 +9,7 @@ import { DeploymentsStoreProvider } from "@/features/deployments/store/store-con
 import type { Deployment } from "@/features/deployments/store/schema"
 import { deployments } from "./deployments"
 
-export const DEFAULT_ROW_COUNT = 60
+const DEFAULT_ROW_COUNT = 60
 
 export type ProviderOptions = Omit<RenderOptions, "wrapper"> & {
   rows?: Deployment[]

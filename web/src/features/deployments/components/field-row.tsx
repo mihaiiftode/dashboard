@@ -38,7 +38,7 @@ export const FieldRow = ({
   const keyHit = search !== "" && field.key.includes(search)
   const hits = search === "" ? [] : topValues(index, search, TOP_WHEN_SEARCHING)
   if (search !== "" && !keyHit && hits.length === 0) return null
-  const open = search !== "" ? hits.length > 0 || manualOpen : manualOpen
+  const open = search === "" ? manualOpen : hits.length > 0 || manualOpen
   const values = hits.length > 0 ? hits : topValues(index, "", TOP)
   return (
     <Collapsible open={open} onOpenChange={setManualOpen}>

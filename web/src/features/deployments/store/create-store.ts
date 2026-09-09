@@ -25,20 +25,18 @@ addRxPlugin(RxDBMigrationSchemaPlugin)
 
 const log = createLogger("deployments", "store")
 
-export const DATABASE_NAME = "deployments"
-export const COLLECTION_NAME = "deployments"
+const DATABASE_NAME = "deployments"
+const COLLECTION_NAME = "deployments"
 const REPLICATION_IDENTIFIER = "deployments"
 const PUSH_BATCH_SIZE = 5
 const CLIENT_ERROR_FLOOR = 400
 const SERVER_ERROR_FLOOR = 500
 
-export type DeploymentsCollection = Collection<Deployment, string, Record<string, never>>
+type DeploymentsCollection = Collection<Deployment, string, Record<string, never>>
 
 export type DeploymentsStore = {
   collection: DeploymentsCollection
   sync: SyncStatus
-  whenFirstPullSettles: () => Promise<void>
-  whenInSync: () => Promise<void>
   destroy: () => Promise<void>
 }
 
@@ -92,12 +90,6 @@ export const createDeploymentsStore = async ({
   return {
     collection,
     sync: { subscribe: tracker.subscribe, snapshot: tracker.snapshot },
-    whenFirstPullSettles: async () => {
-      await replication.awaitInitialReplication()
-    },
-    whenInSync: async () => {
-      await replication.awaitInSync()
-    },
     destroy: async () => {
       unsubscribe()
       failures.unsubscribe()
@@ -161,18 +153,18 @@ const pushRow = async (
       attempted.deleted_at === master.deleted_at
         ? await settleWrite(attempted, master, api)
         : await settleScope(attempted, api)
-    if (settled.rejection !== null) {
-      log.warning("write to {id} was rejected: {detail}", {
-        id: attempted.deployment_id,
-        detail: settled.rejection,
-      })
-      tracker.rejected({ deployment: settled.winner, detail: settled.rejection })
-    } else {
+    if (settled.rejection === null) {
       const conflict = conflictBetween(attempted, settled.winner)
       if (conflict) {
         log.warning("write to {id} lost to a newer version", { id: attempted.deployment_id })
         tracker.conflicted(conflict)
       }
+    } else {
+      log.warning("write to {id} was rejected: {detail}", {
+        id: attempted.deployment_id,
+        detail: settled.rejection,
+      })
+      tracker.rejected({ deployment: settled.winner, detail: settled.rejection })
     }
     return { ...settled.winner, _deleted: false }
   } finally {

@@ -11,6 +11,6 @@ const CLASSES = [
 
 export function chipClass(value: string): string {
   let h = 5381
-  for (let i = 0; i < value.length; i++) h = ((h << 5) + h + value.charCodeAt(i)) | 0
+  for (let i = 0; i < value.length; i++) h = Math.trunc((h << 5) + h + (value.codePointAt(i) ?? 0))
   return CLASSES[Math.abs(h) % CLASSES.length]
 }

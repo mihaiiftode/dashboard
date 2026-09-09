@@ -5,9 +5,14 @@ import { renderWithProviders } from "@/test/render"
 import { setupUser } from "@/test/user"
 import { DeploymentsPage } from "./deployments-page"
 
-const noop = () => undefined
+const noop = () => {}
 
 const findTable = () => screen.findByRole("table", undefined, { timeout: 5000 })
+
+const pendingRows = async () =>
+  (await screen.findAllByRole("status", { name: "Loading" })).map(
+    (spinner) => spinner.closest("[data-slot='table-row']")?.textContent ?? "",
+  )
 
 const openBrowser = async (rows = deployments(6)) => {
   const user = setupUser()
@@ -33,8 +38,8 @@ describe("editing a deployment", () => {
     const rows = deployments(6)
     const { user, table, api } = await openBrowser(rows)
 
-    await user.click(within(table).getAllByRole("button", { name: /^Edit priority/ })[0])
-    await user.click(await screen.findByRole("option", { name: /low/ }))
+    await user.click(within(table).getAllByRole("button", { name: /^Edit priority/u })[0])
+    await user.click(await screen.findByRole("option", { name: /low/u }))
 
     await waitFor(() => expect(api.writes).toHaveLength(1))
     expect(api.rowFor(api.writes[0].id)?.attributes.priority).toBe("low")
@@ -70,8 +75,8 @@ describe("editing a deployment", () => {
     await user.click(within(table).getByRole("button", { name: "Edit name: service-005" }))
     await user.keyboard("mine{Enter}")
 
-    expect(await screen.findByText(/changed elsewhere/)).toBeVisible()
-    expect(await screen.findByText(/Kept name theirs instead of mine/)).toBeVisible()
+    expect(await screen.findByText(/changed elsewhere/u)).toBeVisible()
+    expect(await screen.findByText(/Kept name theirs instead of mine/u)).toBeVisible()
     expect(await within(await findTable()).findByText("theirs")).toBeVisible()
   })
 
@@ -80,7 +85,7 @@ describe("editing a deployment", () => {
     const { table } = await openBrowser(rows)
 
     expect(within(table).getByRole("button", { name: "Edit name: service-000" })).toBeEnabled()
-    expect(within(table).queryByRole("button", { name: /Edit name: service-001/ })).toBeNull()
+    expect(within(table).queryByRole("button", { name: /Edit name: service-001/u })).toBeNull()
   })
 
   it("marks the row pending until the write settles", async () => {
@@ -92,10 +97,6 @@ describe("editing a deployment", () => {
     await user.keyboard("payments-api{Enter}")
 
     await within(table).findByText("payments-api")
-    const pendingRows = async () =>
-      (await screen.findAllByRole("status", { name: "Loading" })).map(
-        (spinner) => spinner.closest("[data-slot='table-row']")?.textContent ?? "",
-      )
     expect((await pendingRows()).every((text) => text.includes("payments-api"))).toBe(true)
 
     release()
@@ -107,7 +108,7 @@ describe("editing a deployment", () => {
     const rows = [deployment(0, { attributes: { oncall: "on@example.com" } }), ...deployments(8).slice(1)]
     const { user, table, api } = await openBrowser(rows)
 
-    await user.click(within(table).getByRole("button", { name: /edit attributes of service-000/i }))
+    await user.click(within(table).getByRole("button", { name: /edit attributes of service-000/iu }))
     await user.type(screen.getByRole("textbox", { name: "New attribute key" }), "cost_centre")
     await user.type(screen.getByRole("textbox", { name: "New attribute value" }), "cc-42")
     await user.click(screen.getByRole("button", { name: "Add attribute" }))

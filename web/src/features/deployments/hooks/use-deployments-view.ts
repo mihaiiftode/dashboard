@@ -3,6 +3,7 @@
 import { useCallback, useDeferredValue, useMemo, useState } from "react"
 import { columnsFor, type RowActions } from "../components/table/columns"
 import type { Sort } from "../components/table/deployments-table"
+import { DEFAULT_SORT } from "../query/compile"
 import { resolve, showsDeleted } from "../query/resolve"
 import { addValue, parse, upsertDirective } from "../query/grammar"
 import { buildSchema, defaultVisible, groupCandidates, type Schema } from "../query/schema"
@@ -17,7 +18,6 @@ import { useScopeCounts, useValueIndex } from "../store/use-value-index"
 export const QUERY_INPUT_ID = "search"
 
 const ALWAYS_VISIBLE = ["name", "description"]
-const DEFAULT_SORT: Sort = { key: "created", desc: true }
 const DATA_SETTLE_MS = 120
 
 export type QueryChange = (next: string | ((previous: string) => string)) => void

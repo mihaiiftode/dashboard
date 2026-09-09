@@ -18,7 +18,7 @@ type Builder = {
 
 const DAY_MS = 86_400_000
 const HOUR_MS = 3_600_000
-const AGE_RULE = /^(\d+)([dhw])$/
+const AGE_RULE = /^(\d+)([dhw])$/u
 const GLOB = "*"
 
 export const DEFAULT_SORT = { key: "created", desc: true } as const
@@ -132,7 +132,7 @@ const ageOf = (raw: string): number | null => {
 }
 
 const globOf = (pattern: string): RegExp =>
-  new RegExp(`^${pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")}$`, "i")
+  new RegExp(`^${pattern.replaceAll(/[.+^${}()|[\]\\]/gu, "\\$&").replaceAll("*", ".*")}$`, "iu")
 
 const anyOf = (clauses: Expression[]): Expression =>
   clauses.length === 2 ? or(clauses[0], clauses[1]) : or(clauses[0], clauses[1], ...clauses.slice(2))

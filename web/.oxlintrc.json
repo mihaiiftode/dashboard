@@ -1,17 +1,31 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "react", "jsx-a11y", "nextjs", "import"],
+  "plugins": [
+    "typescript",
+    "react",
+    "jsx-a11y",
+    "nextjs",
+    "import",
+    "unicorn",
+    "promise",
+    "node",
+    "vitest",
+    "oxc"
+  ],
   "categories": {
     "correctness": "error",
     "suspicious": "error",
-    "perf": "error"
+    "perf": "error",
+    "pedantic": "error"
   },
   "rules": {
     "no-console": "error",
     "no-underscore-dangle": [
       "error",
       {
-        "allow": ["_deleted"]
+        "allow": [
+          "_deleted"
+        ]
       }
     ],
     "typescript/no-explicit-any": "error",
@@ -23,19 +37,39 @@
     "jsx-a11y/no-noninteractive-tabindex": [
       "error",
       {
-        "roles": ["tabpanel", "region"]
+        "roles": [
+          "tabpanel",
+          "region"
+        ]
       }
-    ]
+    ],
+    "eslint/max-lines-per-function": "off",
+    "import/max-dependencies": "off",
+    "eslint/require-await": "off",
+    "vitest/no-conditional-in-test": "off"
   },
   "overrides": [
     {
-      "files": ["**/*.spec.ts", "**/*.spec.tsx"],
+      "files": [
+        "src/components/ui/**"
+      ],
+      "rules": {
+        "eslint/eqeqeq": "off"
+      }
+    },
+    {
+      "files": [
+        "**/*.spec.ts",
+        "**/*.spec.tsx"
+      ],
       "rules": {
         "typescript/no-non-null-assertion": "off"
       }
     },
     {
-      "files": ["src/components/ui/**"],
+      "files": [
+        "src/components/ui/**"
+      ],
       "rules": {
         "jsx-a11y/click-events-have-key-events": "off",
         "jsx-a11y/no-noninteractive-element-interactions": "off",
@@ -43,7 +77,19 @@
         "react/no-array-index-key": "off",
         "react/no-object-type-as-default-prop": "off"
       }
+    },
+    {
+      "files": [
+        "src/test/setup.ts"
+      ],
+      "rules": {
+        "eslint/max-classes-per-file": "off"
+      }
     }
   ],
-  "ignorePatterns": ["node_modules", ".next", "next-env.d.ts"]
+  "ignorePatterns": [
+    "node_modules",
+    ".next",
+    "next-env.d.ts"
+  ]
 }

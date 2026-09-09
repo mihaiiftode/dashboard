@@ -6,7 +6,7 @@ import { renderWithProviders } from "@/test/render"
 import { setupUser } from "@/test/user"
 import { DeploymentsPage } from "./deployments-page"
 
-const noop = () => undefined
+const noop = () => {}
 
 const findTable = () => screen.findByRole("table", undefined, { timeout: 5000 })
 
@@ -15,7 +15,7 @@ describe("DeploymentsPage", () => {
     renderWithProviders(<DeploymentsPage query="" onQueryChange={noop} />, { rows: deployments(40) })
 
     const table = await findTable()
-    expect(within(table).getByRole("columnheader", { name: /team/i })).toBeVisible()
+    expect(within(table).getByRole("columnheader", { name: /team/iu })).toBeVisible()
     expect(within(table).getAllByRole("row").length).toBeGreaterThan(1)
     expect(within(table).getByText("service-039")).toBeVisible()
     expect(within(table).queryByText("service-000")).toBeNull()
@@ -24,7 +24,7 @@ describe("DeploymentsPage", () => {
   it("shows skeleton rows while the store is still opening", () => {
     renderWithProviders(<DeploymentsPage query="" onQueryChange={noop} />)
 
-    expect(screen.getByRole("status", { name: /loading deployments/i })).toBeVisible()
+    expect(screen.getByRole("status", { name: /loading deployments/iu })).toBeVisible()
   })
 
   it("narrows to matching rows when the query filters a facet", async () => {
@@ -90,9 +90,9 @@ describe("DeploymentsPage", () => {
     const names = within(table)
       .getAllByRole("row")
       .slice(1)
-      .map((row) => row.textContent?.match(/service-\d+/)?.[0])
+      .map((row) => row.textContent?.match(/service-\d+/u)?.[0])
       .filter((name) => name !== undefined)
-    expect(names).toEqual([...names].sort())
+    expect(names).toEqual(names.toSorted())
   })
 
   it("groups by an attribute and keeps the groups expanded", async () => {
@@ -100,7 +100,7 @@ describe("DeploymentsPage", () => {
 
     const table = await findTable()
     expect(within(table).getByText("payments")).toBeVisible()
-    expect(within(table).getAllByRole("button", { name: /collapse group/i }).length).toBeGreaterThan(0)
+    expect(within(table).getAllByRole("button", { name: /collapse group/iu }).length).toBeGreaterThan(0)
   })
 
   it("reports the matched count in the footer the shell renders", async () => {
@@ -122,11 +122,11 @@ describe("DeploymentsPage", () => {
     renderWithProviders(<DeploymentsPage query="" onQueryChange={noop} />, { rows })
 
     const table = await findTable()
-    expect(within(table).queryByRole("columnheader", { name: /oncall/i })).toBeNull()
+    expect(within(table).queryByRole("columnheader", { name: /oncall/iu })).toBeNull()
     await user.click(screen.getByRole("button", { name: "Fields" }))
     await user.click(await screen.findByRole("button", { name: "Show oncall column" }))
 
-    expect(within(await findTable()).getByRole("columnheader", { name: /oncall/i })).toBeVisible()
+    expect(within(await findTable()).getByRole("columnheader", { name: /oncall/iu })).toBeVisible()
   })
 
   it("adds a filter token when a top value is picked in the fields panel", async () => {
@@ -139,7 +139,7 @@ describe("DeploymentsPage", () => {
     await findTable()
     await user.click(screen.getByRole("button", { name: "Fields" }))
     const panel = screen.getByRole("complementary", { name: "Fields" })
-    await user.click(within(panel).getByRole("button", { name: /^team/ }))
+    await user.click(within(panel).getByRole("button", { name: /^team/u }))
     await user.click(await within(panel).findByRole("button", { name: "Filter team: payments" }))
 
     expect(queries.at(-1)).toBe("team:payments")
@@ -153,13 +153,13 @@ describe("DeploymentsPage", () => {
     const table = await findTable()
     await user.click(screen.getByRole("button", { name: "Fields" }))
     const panel = screen.getByRole("complementary", { name: "Fields" })
-    expect(within(panel).queryByRole("button", { name: /^canary/ })).toBeNull()
+    expect(within(panel).queryByRole("button", { name: /^canary/u })).toBeNull()
 
-    await user.click(within(table).getByRole("button", { name: /edit attributes of service-000/i }))
+    await user.click(within(table).getByRole("button", { name: /edit attributes of service-000/iu }))
     await user.type(screen.getByRole("textbox", { name: "New attribute key" }), "canary")
     await user.type(screen.getByRole("textbox", { name: "New attribute value" }), "true")
     await user.click(screen.getByRole("button", { name: "Add attribute" }))
 
-    expect(await within(panel).findByRole("button", { name: /^canary/ })).toBeVisible()
+    expect(await within(panel).findByRole("button", { name: /^canary/u })).toBeVisible()
   })
 })

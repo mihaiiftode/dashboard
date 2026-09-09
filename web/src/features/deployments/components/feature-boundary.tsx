@@ -25,9 +25,9 @@ export const FeatureBoundary = ({
   children,
 }: FeatureBoundaryProps) => {
   if (error) return <LoadFailure error={error} onRetry={onRetry} />
-  if (loading) return <>{pending}</>
-  if (isEmpty && empty) return <>{empty}</>
-  return <>{children}</>
+  if (loading) return pending
+  if (isEmpty && empty) return empty
+  return children
 }
 
 const LoadFailure = ({ error, onRetry }: { error: Error; onRetry: () => void }) => (
