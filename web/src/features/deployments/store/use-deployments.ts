@@ -3,11 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useLiveQuery } from "@tanstack/react-db"
 import { notify } from "@/lib/notify"
-import { compileQuery } from "../query/compile"
-import type { Sorting } from "../query/sort"
+import { compileQuery, type FieldCatalog, type QueryPlan, type Sorting } from "../query"
 
-import type { QueryPlan } from "../query/filters"
-import type { FieldCatalog } from "../query/fields"
 import type { WriteConflict } from "./conflict"
 import type { WriteRejection } from "./sync-tracker"
 import { useDeploymentsCollection } from "./store-context"

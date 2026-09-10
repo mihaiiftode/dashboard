@@ -1,14 +1,20 @@
 "use client"
 
 import { useCallback, useDeferredValue, useMemo, useState } from "react"
-import { chipsOf } from "../query/chips"
-import type { FieldCatalog } from "../query/fields"
-import { withoutFieldFilter } from "../query/filters"
-import { parseQuery } from "../query/parse-query"
-import { clauseAt, replaceSpan, withoutClause, withValue } from "../query/query-edits"
-import type { FieldStatistics } from "../query/schema"
-import type { Sorting } from "../query/sort"
-import { indexedFieldOf, suggest } from "../query/suggest"
+import {
+  chipsOf,
+  clauseAt,
+  indexedFieldOf,
+  parseQuery,
+  replaceSpan,
+  suggest,
+  withValue,
+  withoutClause,
+  withoutFieldFilter,
+  type FieldCatalog,
+  type FieldStatistics,
+  type Sorting,
+} from "../query"
 import { useMatchedDeployments } from "../store/use-deployments"
 import { useScopeCounts, useValueIndex } from "../store/use-value-index"
 import { useSettledValue } from "./use-settled-value"

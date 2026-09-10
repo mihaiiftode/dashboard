@@ -2,16 +2,17 @@ import { createColumnHelper } from "@tanstack/react-table"
 import { TagIcon } from "lucide-react"
 import { daysLeft } from "@/lib/format"
 import type { Deployment } from "../../store/schema"
-import { AttributesCell } from "../cells/attributes-cell"
-import { ChipEditCell } from "../cells/chip-edit-cell"
-import { facetCell } from "../cells/facet-cell"
-import { IdCell } from "../cells/id-cell"
-import { InlineEditCell } from "../cells/inline-edit-cell"
-import { RowActionCell } from "../cells/row-action-cell"
-import { TextCell } from "../cells/text-cell"
-import { TimeCell } from "../cells/time-cell"
-import { type FieldStatistics } from "../../query/schema"
-import { readFieldValue, type Field } from "../../query/fields"
+import {
+  AttributesCell,
+  ChipEditCell,
+  IdCell,
+  InlineEditCell,
+  RowActionCell,
+  TextCell,
+  TimeCell,
+  facetCell,
+} from "../cells"
+import { readFieldValue, type Field, type FieldStatistics } from "../../query"
 import { isChipField, optionsFor } from "./field-presentation"
 import { tableFeatures } from "./features"
 
