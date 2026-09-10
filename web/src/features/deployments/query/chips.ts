@@ -21,13 +21,18 @@ export const chipsOf = (query: QueryDocument): readonly QueryChip[] => {
       },
     ]
   }
+  const issueAt = new Map(
+    query.diagnostics.flatMap((diagnostic) =>
+      diagnostic.span ? [[diagnostic.span.start, diagnostic.message] as const] : [],
+    ),
+  )
   return query.clauses.map((clause) => {
-    const issue = query.diagnostics.find((diagnostic) => diagnostic.span?.start === clause.span.start)
+    const issue = issueAt.get(clause.span.start) ?? null
     return {
       key: String(clause.span.start),
       label: clause.key === null ? "“" + clause.text + "”" : clause.text,
       variant: issue ? "destructive" : clause.key === null ? "outline" : "secondary",
-      issue: issue?.message ?? null,
+      issue,
       span: clause.span,
     }
   })

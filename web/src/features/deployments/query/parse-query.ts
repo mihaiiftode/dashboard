@@ -17,8 +17,11 @@ type Outcome = { filter: Filter } | { scope: DeploymentScope } | { issue: string
 const RESERVED = new Set(["AND", "OR", "NOT"])
 const INVALID = { issue: "Unknown field, missing value, or unsupported filter" }
 const SYNTAX_ISSUE = "Incomplete or invalid query syntax"
+const SCOPE_KEY = "is"
+const GLOB = /[*?]/u
 
 export const DELETED_SCOPE = "deleted"
+const LIVE_SCOPE = "live"
 
 const DATE_BOUNDS: Record<ComparisonOperator, (day: CalendarDay) => DateBounds> = {
   ":": (day) => ({ from: startOfCalendarDay(day), to: startOfNextDay(day) }),
@@ -58,14 +61,14 @@ export function parseQuery(source: string, catalog: FieldCatalog): QueryDocument
     return {
       source,
       clauses: [],
-      plan: { filters: [], scope: "live" },
+      plan: { filters: [], scope: LIVE_SCOPE },
       diagnostics: [{ span: null, message: SYNTAX_ISSUE }],
     }
   }
   const clauses: Clause[] = []
   const filters: Filter[] = []
   const diagnostics: QueryDiagnostic[] = []
-  let scope: DeploymentScope = "live"
+  let scope: DeploymentScope = LIVE_SCOPE
 
   for (const node of splitClauses(ast)) {
     const { clause, outcome } = parseClause(node, source, catalog)
@@ -113,7 +116,7 @@ const parseClause = (node: ParserAst, source: string, catalog: FieldCatalog): { 
     prefix: source.slice(node.location.start, tag?.location.start ?? node.location.start),
     text: source.slice(node.location.start, node.location.end),
     key,
-    field: key === null || key === "is" ? null : (resolveKey(catalog, key) ?? null),
+    field: key === null || key === SCOPE_KEY ? null : (resolveKey(catalog, key) ?? null),
     partial: literal?.value ?? "",
     comparator: comparison.slice(1),
   }
@@ -123,7 +126,8 @@ const parseClause = (node: ParserAst, source: string, catalog: FieldCatalog): { 
 
   for (let i = 0; i < negations; i++) {
     if (outcome && "filter" in outcome) outcome = { filter: { kind: FilterKind.Not, operand: outcome.filter } }
-    else if (outcome && "scope" in outcome) outcome = { scope: outcome.scope === "deleted" ? "live" : "deleted" }
+    else if (outcome && "scope" in outcome)
+      outcome = { scope: outcome.scope === DELETED_SCOPE ? LIVE_SCOPE : DELETED_SCOPE }
   }
   return { clause, outcome }
 }
@@ -131,9 +135,9 @@ const parseClause = (node: ParserAst, source: string, catalog: FieldCatalog): { 
 const resolveClause = (clause: Clause, literal: Literal | null, comparison: ComparisonOperator): Outcome => {
   if (!literal || literal.value.trim() === "") return clause.key === null ? null : INVALID
   const { value, quoted } = literal
-  if (clause.key === "is") return value.toLowerCase() === DELETED_SCOPE ? { scope: DELETED_SCOPE } : INVALID
+  if (clause.key === SCOPE_KEY) return value.toLowerCase() === DELETED_SCOPE ? { scope: DELETED_SCOPE } : INVALID
 
-  let operator = !quoted && /[*?]/u.test(value) ? FilterOperator.Glob : FilterOperator.Contains
+  let operator = !quoted && GLOB.test(value) ? FilterOperator.Glob : FilterOperator.Contains
   if (clause.key === null) return { filter: { kind: FilterKind.Text, value, operator } }
   const field = clause.field
   if (!field) return INVALID
