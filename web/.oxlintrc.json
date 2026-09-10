@@ -1,17 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": [
-    "typescript",
-    "react",
-    "jsx-a11y",
-    "nextjs",
-    "import",
-    "unicorn",
-    "promise",
-    "node",
-    "vitest",
-    "oxc"
-  ],
+  "plugins": ["typescript", "react", "jsx-a11y", "nextjs", "import", "unicorn", "promise", "node", "vitest", "oxc"],
   "categories": {
     "correctness": "error",
     "suspicious": "error",
@@ -27,34 +16,21 @@
     "jsx-a11y/no-noninteractive-tabindex": [
       "error",
       {
-        "tags": [
-          "section"
-        ],
-        "roles": [
-          "tabpanel",
-          "region"
-        ]
+        "tags": ["section"],
+        "roles": ["tabpanel", "region"]
       }
     ],
     "react/react-in-jsx-scope": "off",
     "import/no-unassigned-import": [
       "error",
       {
-        "allow": [
-          "**/*.css",
-          "fake-indexeddb/auto",
-          "@testing-library/jest-dom/vitest",
-          "./src/lib/env"
-        ]
+        "allow": ["**/*.css", "fake-indexeddb/auto", "@testing-library/jest-dom/vitest", "./src/lib/env"]
       }
     ],
     "eslint/max-lines-per-function": "off",
     "eslint/max-lines": "off",
-    "import/max-dependencies": "off"
+    "import/max-dependencies": "off",
+    "react/incompatible-library": "off"
   },
-  "ignorePatterns": [
-    "node_modules",
-    ".next",
-    "next-env.d.ts"
-  ]
+  "ignorePatterns": ["node_modules", ".next", "next-env.d.ts"]
 }
