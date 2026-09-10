@@ -5,7 +5,6 @@ from uuid import UUID
 from fastapi import (
     APIRouter,
     Depends,
-    FastAPI,
     Header,
     HTTPException,
     Path,
@@ -14,7 +13,6 @@ from fastapi import (
     Response,
     status,
 )
-from fastapi.responses import JSONResponse
 from pydantic import AwareDatetime
 from sse_starlette import EventSourceResponse
 
@@ -25,19 +23,14 @@ from app.deployments.models import (
     Checkpoint,
     Deployment,
     DeploymentPage,
-    InvalidAttributes,
     ListLimit,
     Writable,
     etag_of,
 )
 from app.deployments.service import (
-    DeploymentDeleted,
-    DeploymentNotDeleted,
-    DeploymentNotFound,
     DeploymentService,
-    StaleWrite,
 )
-from app.errors import Problem, problem_response
+from app.errors import Problem
 from app.settings import Settings
 
 router = APIRouter(prefix="/v1/deployments", tags=["deployments"])
@@ -248,72 +241,3 @@ async def restore_deployment(
     restored = await service.restore(deployment_id)
     response.headers["ETag"] = etag_of(restored.revision)
     return restored
-
-
-async def not_found_handler(request: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, DeploymentNotFound)
-    return problem_response(
-        Problem(
-            title="Not Found",
-            status=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-            instance=request.url.path,
-        )
-    )
-
-
-async def deleted_handler(request: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, DeploymentDeleted)
-    return problem_response(
-        Problem(
-            title="Conflict",
-            status=status.HTTP_409_CONFLICT,
-            detail=f"{exc} and cannot be edited until it is restored",
-            instance=request.url.path,
-        )
-    )
-
-
-async def invalid_attributes_handler(request: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, InvalidAttributes)
-    return problem_response(
-        Problem(
-            title="Unprocessable Content",
-            status=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=str(exc),
-            instance=request.url.path,
-            errors=[
-                {"loc": ["body", "attributes", item.key], "msg": item.reason}
-                for item in exc.violations
-            ],
-        )
-    )
-
-
-async def not_deleted_handler(request: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, DeploymentNotDeleted)
-    return problem_response(
-        Problem(
-            title="Conflict",
-            status=status.HTTP_409_CONFLICT,
-            detail=f"{exc} so there is nothing to restore",
-            instance=request.url.path,
-        )
-    )
-
-
-async def stale_write_handler(request: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, StaleWrite)
-    return JSONResponse(
-        status_code=status.HTTP_412_PRECONDITION_FAILED,
-        content=exc.current.model_dump(mode="json"),
-        headers={"ETag": etag_of(exc.current.revision)},
-    )
-
-
-def register_deployment_error_handlers(app: FastAPI) -> None:
-    app.add_exception_handler(DeploymentNotFound, not_found_handler)
-    app.add_exception_handler(DeploymentDeleted, deleted_handler)
-    app.add_exception_handler(InvalidAttributes, invalid_attributes_handler)
-    app.add_exception_handler(DeploymentNotDeleted, not_deleted_handler)
-    app.add_exception_handler(StaleWrite, stale_write_handler)

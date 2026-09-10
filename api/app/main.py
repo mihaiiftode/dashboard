@@ -10,10 +10,9 @@ from pymongo.errors import PyMongoError
 from app.deployments.change_feed import ChangeFeed
 from app.deployments.mongo_repository import MongoDeploymentRepository
 from app.deployments.repository import DeploymentRepository
-from app.deployments.router import register_deployment_error_handlers
 from app.deployments.router import router as deployments_router
 from app.deployments.service import DeploymentService
-from app.errors import register_error_handlers
+from app.errors import register_deployment_error_handlers, register_error_handlers
 from app.health import HealthCheck
 from app.health import router as health_router
 from app.log_config import configure_logging

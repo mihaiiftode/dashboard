@@ -483,3 +483,52 @@ async def test_refuses_to_edit_a_deployment_once_it_is_deleted(
     )
 
     assert response.status_code == 409
+
+
+async def test_maps_a_missing_deployment_to_problem_json(client: AsyncClient) -> None:
+    response = await client.get(f"/v1/deployments/{uuid4()}")
+
+    assert response.status_code == 404
+    assert response.headers["content-type"] == "application/problem+json"
+    assert response.json()["title"] == "Not Found"
+
+
+async def test_maps_attribute_violations_to_problem_json_with_every_key(
+    edit_client: AsyncClient, rows: list[Deployment]
+) -> None:
+    body = writable_body()
+    body["attributes"] = {"name": "  ", "oncall": "not-an-email"}
+
+    response = await edit_client.put(
+        f"/v1/deployments/{rows[0].deployment_id}",
+        json=body,
+        headers={"If-Match": '"1"'},
+    )
+
+    assert response.status_code == 422
+    assert response.headers["content-type"] == "application/problem+json"
+    reported = {tuple(error["loc"]) for error in response.json()["errors"]}
+    assert ("body", "attributes", "name") in reported
+    assert ("body", "attributes", "oncall") in reported
+
+
+async def test_answers_a_stale_write_with_the_winner_and_not_problem_json(
+    edit_client: AsyncClient, rows: list[Deployment]
+) -> None:
+    target = rows[0].deployment_id
+    await edit_client.put(
+        f"/v1/deployments/{target}",
+        json=writable_body("first"),
+        headers={"If-Match": '"1"'},
+    )
+
+    response = await edit_client.put(
+        f"/v1/deployments/{target}",
+        json=writable_body("second"),
+        headers={"If-Match": '"1"'},
+    )
+
+    assert response.status_code == 412
+    assert response.headers["content-type"] == "application/json"
+    assert response.headers["etag"] == '"2"'
+    assert response.json()["attributes"]["name"] == "first"
