@@ -9,12 +9,16 @@ export type FieldStatistics = {
   total: number
 }
 
-export function buildSchema(rows: Deployment[]): { catalog: FieldCatalog; statistics: FieldStatistics } {
+export const attributeCountsOf = (rows: readonly Deployment[]): ReadonlyMap<string, number> => {
   const counts = new Map<string, number>()
   for (const row of rows)
     for (const key of Object.keys(row.attributes))
       if (row.attributes[key] !== undefined) counts.set(key, (counts.get(key) ?? 0) + 1)
-  const attributeKeys = [...counts.keys()]
+  return counts
+}
+
+export const attributeKeysOf = (counts: ReadonlyMap<string, number>): string[] =>
+  [...counts.keys()]
     .filter((key) => !RESERVED_KEYS.has(key))
     .toSorted((a, b) => {
       const leftPriority = ATTRIBUTE_ORDER.indexOf(a)
@@ -23,6 +27,8 @@ export function buildSchema(rows: Deployment[]): { catalog: FieldCatalog; statis
         return (leftPriority === -1 ? Infinity : leftPriority) - (rightPriority === -1 ? Infinity : rightPriority)
       return (counts.get(b) ?? 0) - (counts.get(a) ?? 0)
     })
+
+export const catalogFor = (attributeKeys: readonly string[]): FieldCatalog => {
   const attributeFields: Field[] = attributeKeys.map((key) => ({
     key,
     label: key,
@@ -32,8 +38,16 @@ export function buildSchema(rows: Deployment[]): { catalog: FieldCatalog; statis
   const fields = [...FIXED_FIELDS]
   fields.splice(1, 0, ...attributeFields.slice(0, 1))
   fields.push(...attributeFields.slice(1))
+  return { fields, byKey: new Map(fields.map((field) => [field.key, field])), attributeKeys }
+}
+
+export const statisticsFor = (
+  rows: readonly Deployment[],
+  catalog: FieldCatalog,
+  attributeCounts: ReadonlyMap<string, number>,
+): FieldStatistics => {
   const distinct = new Map<string, Map<string, number>>()
-  for (const field of fields) {
+  for (const field of catalog.fields) {
     if (field.kind === FieldKind.Id || field.kind === FieldKind.Date) continue
     const values = new Map<string, number>()
     for (const row of rows) {
@@ -42,8 +56,11 @@ export function buildSchema(rows: Deployment[]): { catalog: FieldCatalog; statis
     }
     distinct.set(field.key, values)
   }
-  return {
-    catalog: { fields, byKey: new Map(fields.map((field) => [field.key, field])), attributeKeys },
-    statistics: { attributeCounts: counts, distinct, total: rows.length },
-  }
+  return { attributeCounts, distinct, total: rows.length }
+}
+
+export function buildSchema(rows: readonly Deployment[]): { catalog: FieldCatalog; statistics: FieldStatistics } {
+  const attributeCounts = attributeCountsOf(rows)
+  const catalog = catalogFor(attributeKeysOf(attributeCounts))
+  return { catalog, statistics: statisticsFor(rows, catalog, attributeCounts) }
 }

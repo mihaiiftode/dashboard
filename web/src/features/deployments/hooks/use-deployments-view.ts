@@ -3,7 +3,8 @@
 import { useCallback, useMemo, useState } from "react"
 import { columnsFor, type RowActions } from "../components/table/columns"
 import { defaultVisible, groupCandidates } from "../components/table/field-presentation"
-import { buildSchema, type FieldStatistics } from "../query/schema"
+import type { FieldStatistics } from "../query/schema"
+import { useFieldSchema } from "./use-field-schema"
 import type { FieldCatalog } from "../query/fields"
 import { DEFAULT_SORT, type Sorting } from "../query/sort"
 import type { RemovableQueryChip } from "../components/query-chips"
@@ -31,7 +32,7 @@ export const useDeploymentsView = ({ query, onQueryChange, group, onGroupChange,
   const rows = useAllDeployments()
   const sync = useSyncStatus()
   const writes = useDeploymentWrites()
-  const { catalog, statistics } = useMemo(() => buildSchema(rows), [rows])
+  const { catalog, statistics } = useFieldSchema(rows)
   const [chosen, setChosen] = useState<ReadonlySet<string> | null>(null)
   const [fieldsOpen, setFieldsOpen] = useState(false)
   const [fieldSearch, setFieldSearch] = useState("")
