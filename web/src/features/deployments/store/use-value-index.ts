@@ -12,16 +12,16 @@ export type ScopeCounts = { live: number; deleted: number }
 
 export const useValueIndex = (field: Field | null, plan: QueryPlan, catalog: FieldCatalog): ValueIndex => {
   const collection = useDeploymentsCollection()
-  const { data } = useLiveQuery(
-    (query) => (field ? compileValueIndex(query.from({ deployment: collection }), field, plan, catalog) : undefined),
-    [collection, field, plan, catalog],
-  )
+  const { data } = useLiveQuery({
+    query: (query) =>
+      field ? compileValueIndex(query.from({ deployment: collection }), field, plan, catalog) : undefined,
+  })
   return useMemo(() => valueIndexOf(data ?? []), [data])
 }
 
 export const useScopeCounts = (): ScopeCounts => {
   const collection = useDeploymentsCollection()
-  const { data } = useLiveQuery((query) => compileScopeCounts(query.from({ deployment: collection })), [collection])
+  const { data } = useLiveQuery({ query: (query) => compileScopeCounts(query.from({ deployment: collection })) })
   return useMemo(() => scopeCountsOf(data), [data])
 }
 

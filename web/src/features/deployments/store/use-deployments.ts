@@ -27,16 +27,15 @@ const RETENTION_NOTE = "Recoverable for 30 days under is:deleted."
 
 export const useAllDeployments = (): Deployment[] => {
   const collection = useDeploymentsCollection()
-  const { data } = useLiveQuery((query) => query.from({ deployment: collection }), [collection])
+  const { data } = useLiveQuery({ query: (query) => query.from({ deployment: collection }) })
   return data
 }
 
 export const useMatchedDeployments = (plan: QueryPlan, sort: Sorting, catalog: FieldCatalog): Deployment[] => {
   const collection = useDeploymentsCollection()
-  const { data } = useLiveQuery(
-    (query) => compileQuery(query.from({ deployment: collection }), plan, sort, catalog),
-    [collection, plan, sort, catalog],
-  )
+  const { data } = useLiveQuery({
+    query: (query) => compileQuery(query.from({ deployment: collection }), plan, sort, catalog),
+  })
   return data
 }
 
