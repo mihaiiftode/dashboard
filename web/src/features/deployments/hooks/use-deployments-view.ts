@@ -13,7 +13,7 @@ import { useAllDeployments, useDeploymentWrites, useMatchedDeployments } from ".
 import { useSyncStatus } from "../store/use-sync-status"
 import { useScopeCounts, useValueIndex } from "../store/use-value-index"
 import { sortParser } from "../query/url"
-import type { QueryDirective } from "../components/query-chips"
+import { chipsOf, type QueryDirective } from "../query/chips"
 import { DEFAULT_SORT, type Sorting } from "../query/sort"
 import type { Sort } from "../components/table/deployments-table"
 
@@ -97,6 +97,7 @@ export const useDeploymentsView = ({ query, onQueryChange, group, onGroupChange,
     ],
     [group, sort, onGroupChange, onSortChange],
   )
+  const chips = useMemo(() => chipsOf(parsed, directives, onQueryChange), [parsed, directives, onQueryChange])
 
   const onTableSortChange = useCallback((next: Sort) => onSortChange(next ?? DEFAULT_SORT), [onSortChange])
   const onFilter = useCallback(
@@ -137,8 +138,7 @@ export const useDeploymentsView = ({ query, onQueryChange, group, onGroupChange,
     actions,
     fieldsOpen,
     suggestions,
-    directives,
-    parsed,
+    chips,
     resolvedQuery: settled,
     listedFields,
     fieldSearch,

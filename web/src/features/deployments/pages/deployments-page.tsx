@@ -52,7 +52,7 @@ const DeploymentsBrowser = (props: DeploymentsPageProps) => {
       >
         <FieldsToggle open={view.fieldsOpen} onToggle={view.onToggleFields} />
       </QueryBar>
-      <QueryChips query={view.parsed} directives={view.directives} onQueryChange={onQueryChange} />
+      <QueryChips chips={view.chips} onClear={view.onClearQuery} />
       <div className="flex min-h-0 flex-1">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {view.matched.length === 0 ? (
