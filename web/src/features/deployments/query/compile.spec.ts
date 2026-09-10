@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import { deletedDaysAgo, deployment, deployments } from "@/test/deployments"
 import type { Deployment } from "../store/schema"
 import { compileQuery } from "./compile"
-import { parseQuery } from "./filter-set"
+import { parseQuery } from "./parse-query"
 import { buildSchema } from "./schema"
 import { DEFAULT_SORT, type Sorting } from "./sort"
 
@@ -19,10 +19,10 @@ const collectionOver = (rows: Deployment[]) => {
 }
 
 const namesFor = async (query: string, rows: Deployment[], sort: Sorting = DEFAULT_SORT) => {
-  const schema = buildSchema(rows)
+  const { catalog } = buildSchema(rows)
   const collection = collectionOver(rows)
   const live = createLiveQueryCollection((builder) =>
-    compileQuery(builder.from({ deployment: collection }), parseQuery(query, schema), sort, schema).select(
+    compileQuery(builder.from({ deployment: collection }), parseQuery(query, catalog).plan, sort, catalog).select(
       ({ deployment: row }) => ({ name: row.attributes.name }),
     ),
   )

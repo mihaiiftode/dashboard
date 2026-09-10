@@ -3,12 +3,13 @@ import { deployment, deployments } from "@/test/deployments"
 import { indexedFieldOf, suggest, type SuggestContext } from "./suggest"
 import { buildSchema } from "./schema"
 import { EMPTY_VALUE_INDEX, valueIndexOf, type ValueIndex } from "./value-index"
-import { clauseAt, parseQuery, replaceSpan } from "./filter-set"
+import { parseQuery } from "./parse-query"
+import { clauseAt, replaceSpan } from "./query-edits"
 
 afterEach(() => vi.useRealTimers())
 
 const rows = deployments(12)
-const schema = buildSchema(rows)
+const { catalog, statistics } = buildSchema(rows)
 
 const indexOf = (entries: Record<string, number>): ValueIndex =>
   valueIndexOf(Object.entries(entries).map(([value, count]) => ({ value, rows: count })))
@@ -16,12 +17,13 @@ const indexOf = (entries: Record<string, number>): ValueIndex =>
 const context = (index: ValueIndex = EMPTY_VALUE_INDEX, deletedRows = 0): SuggestContext => ({
   index,
   deletedRows,
+  attributeCounts: statistics.attributeCounts,
 })
 
-const setOf = (query: string) => parseQuery(query, schema)
+const setOf = (query: string) => parseQuery(query, catalog)
 
 const at = (query: string, index?: ValueIndex, deletedRows?: number) =>
-  suggest(setOf(query), query.length, schema, context(index, deletedRows))
+  suggest(setOf(query), query.length, catalog, context(index, deletedRows))
 
 const fieldAt = (query: string, caret: number) => indexedFieldOf(clauseAt(setOf(query), caret))
 
@@ -100,7 +102,7 @@ describe("suggest", () => {
     expect(items).toEqual([expect.objectContaining({ insert: "is:deleted ", count: 4 })])
   })
 
-  it("offers nothing for a key the schema does not know", () => {
+  it("offers nothing for a key the catalog does not know", () => {
     expect(at("nonsense:").items).toEqual([])
   })
 
@@ -114,7 +116,7 @@ describe("suggest", () => {
   it("suggests against the token under the caret, not the whole query", () => {
     const query = "status:failed team:pay"
 
-    const { span, items } = suggest(setOf(query), 17, schema, context(indexOf({ payments: 4 })))
+    const { span, items } = suggest(setOf(query), 17, catalog, context(indexOf({ payments: 4 })))
 
     expect(query.slice(span?.start ?? 0, span?.end)).toBe("team:pay")
     expect(items.some((item) => item.insert.startsWith("team:"))).toBe(true)
@@ -137,7 +139,10 @@ describe("indexedFieldOf", () => {
   })
 
   it("names an attribute key that only one row carries", () => {
-    const scoped = buildSchema([deployment(1, { attributes: { oncall: "on@example.com" } }), deployment(2)])
+    const { catalog: scoped } = buildSchema([
+      deployment(1, { attributes: { oncall: "on@example.com" } }),
+      deployment(2),
+    ])
 
     expect(indexedFieldOf(clauseAt(parseQuery("oncall:on", scoped), 9))?.key).toBe("oncall")
   })

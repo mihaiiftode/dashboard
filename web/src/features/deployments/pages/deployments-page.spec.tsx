@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react"
+import { screen, waitFor, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { deletedDaysAgo, deployment, deployments } from "@/test/deployments"
 import { columnHeader, findTable, noRowNamed, renderDeploymentsPage, rowNamed, table } from "@/test/deployments-page"
@@ -34,6 +34,34 @@ describe("DeploymentsPage", () => {
     await findTable()
     expect(within(table()).getAllByRole("row").length).toBeGreaterThan(1)
     expect(within(table()).queryByText("active")).toBeNull()
+  })
+
+  it("applies a negated completion and restores the caret after it", async () => {
+    const user = setupUser()
+    renderDeploymentsPage({ query: "-status:fai", rows: deployments(6) })
+
+    await findTable()
+    const input = screen.getByRole<HTMLInputElement>("combobox", { name: /search and filter/iu })
+    await user.click(input)
+    await user.click(await screen.findByRole("option", { name: /-status:failed/u }))
+
+    expect(input).toHaveValue("-status:failed ")
+    await waitFor(() => {
+      expect(input).toHaveFocus()
+      expect(input.selectionStart).toBe(15)
+    })
+    await waitFor(() => expect(within(table()).queryByText("failed")).toBeNull())
+  })
+
+  it("clears an invalid draft through its chip", async () => {
+    const user = setupUser()
+    renderDeploymentsPage({ query: "status:(", rows: deployments(6) })
+
+    await findTable()
+    await user.click(screen.getByRole("button", { name: "Remove status:(" }))
+
+    expect(screen.getByRole("combobox", { name: /search and filter/iu })).toHaveValue("")
+    expect(screen.queryByRole("button", { name: "Remove status:(" })).toBeNull()
   })
 
   it("offers a way back when nothing matches", async () => {
@@ -87,6 +115,40 @@ describe("DeploymentsPage", () => {
     await findTable()
     expect(columnHeader("name")).toHaveAttribute("aria-sort", "ascending")
     expect(serviceNames()).toEqual(serviceNames().toSorted())
+  })
+
+  it("removes the sort directive without clearing the query", async () => {
+    const user = setupUser()
+    renderDeploymentsPage({ query: "status:failed", sort: { key: "name", desc: false }, rows: deployments(8) })
+
+    await findTable()
+    await user.click(screen.getByRole("button", { name: "Remove sort:name" }))
+
+    expect(screen.queryByRole("button", { name: "Remove sort:name" })).toBeNull()
+    expect(screen.getByRole("button", { name: "Remove status:failed" })).toBeVisible()
+    expect(columnHeader("Created")).toHaveAttribute("aria-sort", "descending")
+  })
+
+  it("removes grouping through its directive chip", async () => {
+    const user = setupUser()
+    renderDeploymentsPage({ group: "team", rows: deployments(9) })
+
+    await findTable()
+    await user.click(screen.getByRole("button", { name: "Remove group:team" }))
+
+    expect(screen.queryByRole("button", { name: "Remove group:team" })).toBeNull()
+    expect(within(table()).queryByRole("button", { name: /collapse group/iu })).toBeNull()
+  })
+
+  it("removes a filter chip and restores the excluded rows", async () => {
+    const user = setupUser()
+    renderDeploymentsPage({ query: "status:failed", rows: deployments(6) })
+
+    await findTable()
+    await user.click(screen.getByRole("button", { name: "Remove status:failed" }))
+
+    expect(screen.getByRole("combobox", { name: /search and filter/iu })).toHaveValue("")
+    expect(await within(table()).findAllByText("active")).not.toHaveLength(0)
   })
 
   it("groups by an attribute and keeps the groups expanded", async () => {

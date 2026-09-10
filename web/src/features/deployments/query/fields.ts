@@ -7,6 +7,12 @@ export enum FieldKind {
   Id = "id",
 }
 
+export type FieldCatalog = {
+  fields: readonly Field[]
+  byKey: ReadonlyMap<string, Field>
+  attributeKeys: readonly string[]
+}
+
 type StoredColumn = Exclude<keyof Deployment, "attributes" | "revision">
 
 export type Field = {
@@ -60,7 +66,7 @@ const ALIASES: Record<string, string> = {
 export const readFieldValue = (field: Field, row: Deployment): string | undefined =>
   (field.attribute ? row.attributes[field.key] : row[field.column]) ?? undefined
 
-export function resolveKey(schema: { byKey: ReadonlyMap<string, Field> }, raw: string): Field | undefined {
+export function resolveKey(catalog: { byKey: ReadonlyMap<string, Field> }, raw: string): Field | undefined {
   const key = raw.toLowerCase()
-  return schema.byKey.get(ALIASES[key] ?? key)
+  return catalog.byKey.get(ALIASES[key] ?? key)
 }

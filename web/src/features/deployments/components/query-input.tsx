@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/autocomplete"
 import { Kbd } from "@/components/ui/kbd"
 import { cn } from "@/lib/utils"
-import { replaceSpan } from "../query/filter-set"
 import type { Suggestion, SuggestionKind, Suggestions } from "../query/suggest"
 
 const KIND_CLASS: Record<SuggestionKind, string> = {
@@ -27,15 +26,23 @@ const ITEM_PRESS = "item-press"
 export type QueryInputProps = {
   inputId: string
   query: string
-  suggestions: Suggestions
+  suggestions: Pick<Suggestions, "items" | "preselect">
   onQueryChange: (next: string) => void
   onCaretChange: (caret: number) => void
+  onSuggestionSelect: (insert: string) => number
 }
 
-export const QueryInput = ({ inputId, query, suggestions, onQueryChange, onCaretChange }: QueryInputProps) => {
+export const QueryInput = ({
+  inputId,
+  query,
+  suggestions,
+  onQueryChange,
+  onCaretChange,
+  onSuggestionSelect,
+}: QueryInputProps) => {
   const [open, setOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-  const { span: activeSpan, items, preselect } = suggestions
+  const { items, preselect } = suggestions
 
   const syncCaret = useCallback(() => {
     const input = inputRef.current
@@ -60,9 +67,7 @@ export const QueryInput = ({ inputId, query, suggestions, onQueryChange, onCaret
       value={query}
       onValueChange={(value: string, details) => {
         if (details.reason === ITEM_PRESS) {
-          const next = replaceSpan(query, activeSpan, value)
-          onQueryChange(next.query)
-          placeCaret(next.caret)
+          placeCaret(onSuggestionSelect(value))
           return
         }
         onQueryChange(value)

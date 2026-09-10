@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { QueryChip } from "../query/chips"
 
+export type RemovableQueryChip = Omit<QueryChip, "span"> & { onRemove: () => void }
+
 export type QueryChipsProps = {
-  chips: readonly QueryChip[]
+  chips: readonly RemovableQueryChip[]
   onClear: () => void
 }
 
@@ -25,7 +27,7 @@ export const QueryChips = ({ chips, onClear }: QueryChipsProps) => {
   )
 }
 
-const ChipBadge = ({ chip }: { chip: QueryChip }) => {
+const ChipBadge = ({ chip }: { chip: RemovableQueryChip }) => {
   const badge = (
     <Badge data-slot="query-chip" variant={chip.variant} className="gap-1 pr-1 font-mono text-[11px]">
       {chip.label}

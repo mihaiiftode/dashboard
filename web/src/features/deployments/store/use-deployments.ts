@@ -6,8 +6,8 @@ import { notify } from "@/lib/notify"
 import { compileQuery } from "../query/compile"
 import type { Sorting } from "../query/sort"
 
-import type { FilterSet } from "../query/filter-set"
-import type { Schema } from "../query/schema"
+import type { QueryPlan } from "../query/filters"
+import type { FieldCatalog } from "../query/fields"
 import type { WriteConflict } from "./conflict"
 import type { WriteRejection } from "./sync-tracker"
 import { useDeploymentsCollection } from "./store-context"
@@ -31,11 +31,11 @@ export const useAllDeployments = (): Deployment[] => {
   return data
 }
 
-export const useMatchedDeployments = (resolved: FilterSet, sort: Sorting, schema: Schema): Deployment[] => {
+export const useMatchedDeployments = (plan: QueryPlan, sort: Sorting, catalog: FieldCatalog): Deployment[] => {
   const collection = useDeploymentsCollection()
   const { data } = useLiveQuery(
-    (query) => compileQuery(query.from({ deployment: collection }), resolved, sort, schema),
-    [collection, resolved, sort, schema],
+    (query) => compileQuery(query.from({ deployment: collection }), plan, sort, catalog),
+    [collection, plan, sort, catalog],
   )
   return data
 }

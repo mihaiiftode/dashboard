@@ -13,6 +13,10 @@ export enum FilterKind {
   Not = "not",
 }
 
+export type DeploymentScope = "live" | "deleted"
+
+export type QueryPlan = { scope: DeploymentScope; filters: readonly Filter[] }
+
 export type DateBounds = { from: string; to: string | null } | { from: null; to: string }
 
 export type Filter =
@@ -21,7 +25,7 @@ export type Filter =
   | ({ kind: FilterKind.Date; field: Field } & DateBounds)
   | { kind: FilterKind.Not; operand: Filter }
 
-export const withoutField = (filter: Filter, key: string): Filter | null => {
+const withoutField = (filter: Filter, key: string): Filter | null => {
   switch (filter.kind) {
     case FilterKind.Text:
       return filter
@@ -34,3 +38,11 @@ export const withoutField = (filter: Filter, key: string): Filter | null => {
     }
   }
 }
+
+export const withoutFieldFilter = (query: QueryPlan, field: Field): QueryPlan => ({
+  scope: query.scope,
+  filters: query.filters.flatMap((filter) => {
+    const remaining = withoutField(filter, field.key)
+    return remaining ? [remaining] : []
+  }),
+})

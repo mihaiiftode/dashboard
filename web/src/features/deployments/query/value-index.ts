@@ -1,7 +1,3 @@
-import { withoutField } from "./filters"
-import type { Narrowing } from "./filter-set"
-import type { Field } from "./fields"
-
 export type ValueCount = { value: string; rows: number }
 
 export type ValueIndex = {
@@ -29,14 +25,6 @@ export const valueIndexOf = (groups: Iterable<unknown>): ValueIndex => {
 
 const byRowsThenValue = (left: readonly [string, number], right: readonly [string, number]): number =>
   right[1] - left[1] || left[0].localeCompare(right[0])
-
-export const withoutFieldFilter = (query: Narrowing, field: Field): Narrowing => ({
-  scope: query.scope,
-  filters: query.filters.flatMap((filter) => {
-    const remaining = withoutField(filter, field.key)
-    return remaining ? [remaining] : []
-  }),
-})
 
 export const topValues = (index: ValueIndex, partial: string, limit: number): ValueCount[] => {
   const wanted = partial.toLowerCase()

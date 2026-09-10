@@ -16,10 +16,8 @@ import {
 import { subDays } from "date-fns"
 import { RETENTION_DAYS } from "@/lib/format"
 import type { Deployment } from "../store/schema"
-import { FilterKind, FilterOperator, type Filter } from "./filters"
-import type { Narrowing } from "./filter-set"
-import { type Schema } from "./schema"
-import { resolveKey, type Field } from "./fields"
+import { FilterKind, FilterOperator, type Filter, type QueryPlan } from "./filters"
+import { resolveKey, type Field, type FieldCatalog } from "./fields"
 import type { Sorting } from "./sort"
 
 type DeploymentContext = {
@@ -32,16 +30,16 @@ type DeploymentQuery = QueryBuilder<DeploymentContext>
 type DeploymentRefs = RefsForContext<DeploymentContext>["deployment"]
 type Expression = ReturnType<typeof isNull>
 
-export const compileQuery = (source: DeploymentQuery, query: Narrowing, sort: Sorting, schema: Schema) => {
-  const filtered = compileFilters(source, query, schema)
-  const field = resolveKey(schema, sort.key)
+export const compileQuery = (source: DeploymentQuery, query: QueryPlan, sort: Sorting, catalog: FieldCatalog) => {
+  const filtered = compileFilters(source, query, catalog)
+  const field = resolveKey(catalog, sort.key)
   return field
     ? filtered.orderBy(({ deployment }) => fieldReference(deployment, field), sort.desc ? "desc" : "asc")
     : filtered
 }
 
-export const compileValueIndex = (source: DeploymentQuery, field: Field, query: Narrowing, schema: Schema) =>
-  compileFilters(source, query, schema)
+export const compileValueIndex = (source: DeploymentQuery, field: Field, query: QueryPlan, catalog: FieldCatalog) =>
+  compileFilters(source, query, catalog)
     .groupBy(({ deployment }) => fieldReference(deployment, field))
     .select(({ deployment }) => ({
       value: fieldReference(deployment, field),
@@ -56,7 +54,7 @@ export const compileScopeCounts = (source: DeploymentQuery) =>
       rows: count(deployment.deployment_id),
     }))
 
-const compileFilters = (source: DeploymentQuery, query: Narrowing, schema: Schema): DeploymentQuery => {
+const compileFilters = (source: DeploymentQuery, query: QueryPlan, catalog: FieldCatalog): DeploymentQuery => {
   let filtered = source.where(({ deployment }) => {
     const live = isNull(deployment.deleted_at)
     return query.scope === "deleted" ? not(live) : live
@@ -66,15 +64,15 @@ const compileFilters = (source: DeploymentQuery, query: Narrowing, schema: Schem
     filtered = filtered.where(({ deployment }) => gt(deployment.deleted_at, cutoff))
   }
   for (const filter of query.filters) {
-    filtered = filtered.where(({ deployment }) => compileFilter(deployment, filter, schema))
+    filtered = filtered.where(({ deployment }) => compileFilter(deployment, filter, catalog))
   }
   return filtered
 }
 
-const compileFilter = (row: DeploymentRefs, filter: Filter, schema: Schema): Expression => {
+const compileFilter = (row: DeploymentRefs, filter: Filter, catalog: FieldCatalog): Expression => {
   switch (filter.kind) {
     case FilterKind.Not:
-      return not(compileFilter(row, filter.operand, schema))
+      return not(compileFilter(row, filter.operand, catalog))
     case FilterKind.Text: {
       const haystack = concat(
         row.deployment_id,
@@ -82,7 +80,7 @@ const compileFilter = (row: DeploymentRefs, filter: Filter, schema: Schema): Exp
         row.version,
         " ",
         row.created_by,
-        ...schema.attributeKeys.flatMap((key) => [" ", coalesce(row.attributes[key], "")]),
+        ...catalog.attributeKeys.flatMap((key) => [" ", coalesce(row.attributes[key], "")]),
       )
       return matchString(haystack, filter.value, filter.operator)
     }

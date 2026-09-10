@@ -1,26 +1,27 @@
 import { describe, expect, it } from "vitest"
 import { deployments } from "@/test/deployments"
 import { FilterKind, FilterOperator } from "./filters"
-import { clauseAt, parseQuery, replaceSpan, withoutClause, withValue, quoteValue } from "./filter-set"
+import { parseQuery, quoteValue } from "./parse-query"
 import { buildSchema } from "./schema"
 
 const rows = deployments(12)
-const schema = buildSchema(rows)
+const { catalog } = buildSchema(rows)
 
-const setOf = (query: string) => parseQuery(query, schema)
+const setOf = (query: string) => parseQuery(query, catalog)
 const clausesOf = (query: string) => setOf(query).clauses.map((clause) => clause.text)
-const firstFilter = (query: string) => setOf(query).filters[0]
-const issuesOf = (query: string) => setOf(query).clauses.flatMap((clause) => (clause.issue ? [clause.text] : []))
+const firstFilter = (query: string) => setOf(query).plan.filters[0]
+const issuesOf = (query: string) =>
+  setOf(query).diagnostics.map((issue) => query.slice(issue.span?.start, issue.span?.end))
 
 describe("parseQuery", () => {
   it("reads a valid query without reporting a syntax issue", () => {
-    expect(setOf("status:failed").syntaxIssue).toBeNull()
+    expect(setOf("status:failed").diagnostics.find((issue) => issue.span === null)).toBeUndefined()
   })
 
   it("reports a syntax issue and no clauses instead of throwing", () => {
     const parsed = setOf("status:(")
 
-    expect(parsed.syntaxIssue).not.toBeNull()
+    expect(parsed.diagnostics.find((issue) => issue.span === null)).not.toBeUndefined()
     expect(parsed.clauses).toEqual([])
   })
 
@@ -37,11 +38,11 @@ describe("parseQuery", () => {
 
     expect(clausesOf(source)).toEqual(["(status:failed OR status:stopped)", "team:payments"])
     expect(issuesOf(source)).toEqual(["(status:failed OR status:stopped)"])
-    expect(setOf(source).filters).toHaveLength(1)
+    expect(setOf(source).plan.filters).toHaveLength(1)
   })
 
   it("narrows by nothing when the only text is blank", () => {
-    expect(setOf('  ""  ').filters).toEqual([])
+    expect(setOf('  ""  ').plan.filters).toEqual([])
   })
 })
 
@@ -88,7 +89,7 @@ describe("resolving a clause against the fields", () => {
     "keeps %s as a clause and marks it",
     (query) => {
       expect(issuesOf(query)).toEqual([query])
-      expect(setOf(query).filters).toEqual([])
+      expect(setOf(query).plan.filters).toEqual([])
     },
   )
 })
@@ -100,75 +101,14 @@ describe("scope", () => {
     ["", "live"],
     ["is:deleted -is:deleted", "deleted"],
   ])("reads the scope of %s as %s", (query, scope) => {
-    expect(setOf(query).scope).toBe(scope)
+    expect(setOf(query).plan.scope).toBe(scope)
   })
 
   it("keeps the scope clause out of the filters", () => {
     const parsed = setOf("is:deleted status:failed")
 
-    expect(parsed.filters).toHaveLength(1)
+    expect(parsed.plan.filters).toHaveLength(1)
     expect(parsed.clauses).toHaveLength(2)
-  })
-})
-
-describe("clauseAt", () => {
-  it("finds the clause the caret sits inside", () => {
-    const parsed = setOf("status:failed team:pay")
-
-    expect(clauseAt(parsed, 4)?.key).toBe("status")
-    expect(clauseAt(parsed, 22)?.key).toBe("team")
-  })
-
-  it("reads no clause when the caret sits past the last one", () => {
-    expect(clauseAt(setOf("status:failed "), 14)).toBeNull()
-  })
-
-  it("excludes the negation from the span a suggestion replaces", () => {
-    const clause = clauseAt(setOf("-status:fai"), 11)
-
-    expect(clause?.span.start).toBe(0)
-    expect(clause?.prefix).toBe("-")
-  })
-})
-
-describe("replaceSpan", () => {
-  it("replaces the span and reports the new caret", () => {
-    const clause = clauseAt(setOf("status:fa"), 9)
-
-    expect(replaceSpan("status:fa", clause?.span ?? null, "status:failed")).toEqual({
-      query: "status:failed",
-      caret: 13,
-    })
-  })
-
-  it("appends with a separating space when there is no span", () => {
-    expect(replaceSpan("status:failed", null, "team:payments")).toEqual({
-      query: "status:failed team:payments",
-      caret: 27,
-    })
-  })
-
-  it("reports the prefix a negated clause must keep when its value is replaced", () => {
-    const clause = clauseAt(setOf("-status:fai"), 11)
-
-    expect(replaceSpan("-status:fai", clause?.span ?? null, (clause?.prefix ?? "") + "status:failed").query).toBe(
-      "-status:failed",
-    )
-  })
-})
-
-describe("withoutClause", () => {
-  it("drops the clause at the given span and keeps the rest verbatim", () => {
-    const query = 'payment status:failed team:"release team"'
-    const parsed = setOf(query)
-
-    expect(withoutClause(parsed, parsed.clauses[1].span)).toBe('payment team:"release team"')
-  })
-
-  it("removes only the occurrence the span points at when a clause repeats", () => {
-    const parsed = setOf("status:failed status:failed")
-
-    expect(withoutClause(parsed, parsed.clauses[1].span)).toBe("status:failed")
   })
 })
 
@@ -185,37 +125,5 @@ describe("quoteValue", () => {
     for (const value of ["release team", "a,b", 'say "hi" now', "C:\\temp\\"]) {
       expect(firstFilter(`team:${quoteValue(value)}`)).toMatchObject({ value: value.toLowerCase() })
     }
-  })
-})
-
-describe("withValue", () => {
-  it("adds a clause when the field is absent", () => {
-    expect(withValue(setOf("payment"), "status", "failed")).toBe("payment status:failed")
-  })
-
-  it("replaces the clause already filtering that field", () => {
-    expect(withValue(setOf("status:failed"), "status", "stopped")).toBe("status:stopped")
-  })
-
-  it("replaces a negated clause for the same field", () => {
-    expect(withValue(setOf("-status:failed"), "status", "stopped")).toBe("status:stopped")
-  })
-
-  it("leaves the query untouched when the value is already there", () => {
-    expect(withValue(setOf("status:failed"), "status", "failed")).toBe("status:failed")
-  })
-
-  it("quotes a value that would otherwise lex as two terms", () => {
-    expect(withValue(setOf(""), "name", "order gateway")).toBe('name:"order gateway"')
-  })
-
-  it("writes a negated clause when asked", () => {
-    expect(withValue(setOf(""), "status", "failed", true)).toBe("-status:failed")
-  })
-
-  it("keeps every query it generates parsable", () => {
-    const built = withValue(setOf(withValue(setOf(""), "team", "release team")), "name", 'say "hi"')
-
-    expect(setOf(built).syntaxIssue).toBeNull()
   })
 })

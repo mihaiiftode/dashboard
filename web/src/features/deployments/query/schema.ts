@@ -1,18 +1,15 @@
 import type { Deployment } from "../store/schema"
-import { FIXED_FIELDS, FieldKind, readFieldValue, type Field } from "./fields"
+import { FIXED_FIELDS, FieldKind, readFieldValue, type Field, type FieldCatalog } from "./fields"
 
 const ATTRIBUTE_ORDER = ["name", "description", "team", "region", "priority", "language", "framework", "oncall"]
 
-export type Schema = {
-  fields: Field[]
-  byKey: Map<string, Field>
-  attributeKeys: string[]
-  attributeCounts: Map<string, number>
-  distinct: Map<string, Map<string, number>>
+export type FieldStatistics = {
+  attributeCounts: ReadonlyMap<string, number>
+  distinct: ReadonlyMap<string, ReadonlyMap<string, number>>
   total: number
 }
 
-export function buildSchema(rows: Deployment[]): Schema {
+export function buildSchema(rows: Deployment[]): { catalog: FieldCatalog; statistics: FieldStatistics } {
   const counts = new Map<string, number>()
   for (const row of rows)
     for (const key of Object.keys(row.attributes))
@@ -44,11 +41,7 @@ export function buildSchema(rows: Deployment[]): Schema {
     distinct.set(field.key, values)
   }
   return {
-    fields,
-    byKey: new Map(fields.map((field) => [field.key, field])),
-    attributeKeys,
-    attributeCounts: counts,
-    distinct,
-    total: rows.length,
+    catalog: { fields, byKey: new Map(fields.map((field) => [field.key, field])), attributeKeys },
+    statistics: { attributeCounts: counts, distinct, total: rows.length },
   }
 }

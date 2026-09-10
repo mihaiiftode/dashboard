@@ -1,16 +1,13 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 import { deployments } from "@/test/deployments"
-import { chipsOf, type QueryDirective } from "./chips"
-import { parseQuery } from "./filter-set"
+import { chipsOf } from "./chips"
+import { withoutClause } from "./query-edits"
+import { parseQuery } from "./parse-query"
 import { buildSchema } from "./schema"
 
-const schema = buildSchema(deployments(12))
+const { catalog } = buildSchema(deployments(12))
 
-const chips = (
-  query: string,
-  directives: readonly QueryDirective[] = [],
-  onQueryChange: (next: string) => void = () => {},
-) => chipsOf(parseQuery(query, schema), directives, onQueryChange)
+const chips = (query: string) => chipsOf(parseQuery(query, catalog))
 
 describe("chipsOf", () => {
   it("reads a resolved field clause as a plain secondary chip", () => {
@@ -38,28 +35,14 @@ describe("chipsOf", () => {
     expect(chips("status:failed status:failed").map((chip) => chip.key)).toEqual(["0", "14"])
   })
 
-  it("appends directive chips after the clause chips", () => {
-    const onRemove = vi.fn<() => void>()
-
-    expect(chips("status:failed", [{ label: "group:team", onRemove }]).map((chip) => chip.label)).toEqual([
-      "status:failed",
-      "group:team",
-    ])
-  })
-
   it("removes only the clause its chip points at", () => {
-    const onQueryChange = vi.fn<(next: string) => void>()
+    const document = parseQuery("payment status:failed", catalog)
+    const chip = chipsOf(document)[1]
 
-    chips("payment status:failed", [], onQueryChange)[1].onRemove()
-
-    expect(onQueryChange).toHaveBeenCalledWith("payment")
+    expect(withoutClause(document, chip.span!)).toBe("payment")
   })
 
-  it("clears the whole query when the unparsable chip is removed", () => {
-    const onQueryChange = vi.fn<(next: string) => void>()
-
-    chips("status:(", [], onQueryChange)[0].onRemove()
-
-    expect(onQueryChange).toHaveBeenCalledWith("")
+  it("represents invalid source removal without a clause span", () => {
+    expect(chips("status:(")[0].span).toBeNull()
   })
 })

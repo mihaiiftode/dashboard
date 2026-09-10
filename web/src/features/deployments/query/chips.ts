@@ -1,70 +1,34 @@
-import { withoutClause, type Clause, type FilterSet } from "./filter-set"
-
-type ChipVariant = "destructive" | "outline" | "secondary"
+import type { QueryDocument, Span } from "./parse-query"
 
 export type QueryChip = {
   key: string
   label: string
-  variant: ChipVariant
+  variant: "destructive" | "outline" | "secondary"
   issue: string | null
-  onRemove: () => void
+  span: Span | null
 }
 
-export type QueryDirective = { label: string; onRemove: () => void }
-
-enum ClauseAppearance {
-  Invalid = "invalid",
-  Bare = "bare",
-  Field = "field",
-}
-
-const VARIANT_OF: Record<ClauseAppearance, ChipVariant> = {
-  [ClauseAppearance.Invalid]: "destructive",
-  [ClauseAppearance.Bare]: "outline",
-  [ClauseAppearance.Field]: "secondary",
-}
-
-const appearanceOf = (clause: Clause): ClauseAppearance => {
-  if (clause.issue !== null) return ClauseAppearance.Invalid
-  if (clause.key === null) return ClauseAppearance.Bare
-  return ClauseAppearance.Field
-}
-
-const labelOf = (clause: Clause): string => (clause.key === null ? "“" + clause.text + "”" : clause.text)
-
-export const chipsOf = (
-  query: FilterSet,
-  directives: readonly QueryDirective[],
-  onQueryChange: (next: string) => void,
-): readonly QueryChip[] => [...clauseChips(query, onQueryChange), ...directiveChips(directives)]
-
-const clauseChips = (query: FilterSet, onQueryChange: (next: string) => void): QueryChip[] => {
-  const { syntaxIssue } = query
-  if (syntaxIssue !== null) {
+export const chipsOf = (query: QueryDocument): readonly QueryChip[] => {
+  const syntaxIssue = query.diagnostics.find((issue) => issue.span === null)
+  if (syntaxIssue) {
     return [
       {
         key: "syntax",
         label: query.source,
-        variant: VARIANT_OF[ClauseAppearance.Invalid],
-        issue: syntaxIssue,
-        onRemove: () => onQueryChange(""),
+        variant: "destructive",
+        issue: syntaxIssue.message,
+        span: null,
       },
     ]
   }
-  return query.clauses.map((clause) => ({
-    key: String(clause.span.start),
-    label: labelOf(clause),
-    variant: VARIANT_OF[appearanceOf(clause)],
-    issue: clause.issue,
-    onRemove: () => onQueryChange(withoutClause(query, clause.span)),
-  }))
+  return query.clauses.map((clause) => {
+    const issue = query.diagnostics.find((diagnostic) => diagnostic.span?.start === clause.span.start)
+    return {
+      key: String(clause.span.start),
+      label: clause.key === null ? "“" + clause.text + "”" : clause.text,
+      variant: issue ? "destructive" : clause.key === null ? "outline" : "secondary",
+      issue: issue?.message ?? null,
+      span: clause.span,
+    }
+  })
 }
-
-const directiveChips = (directives: readonly QueryDirective[]): QueryChip[] =>
-  directives.map((directive) => ({
-    key: directive.label,
-    label: directive.label,
-    variant: VARIANT_OF[ClauseAppearance.Field],
-    issue: null,
-    onRemove: directive.onRemove,
-  }))

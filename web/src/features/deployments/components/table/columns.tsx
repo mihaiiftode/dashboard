@@ -10,7 +10,7 @@ import { InlineEditCell } from "../cells/inline-edit-cell"
 import { RowActionCell } from "../cells/row-action-cell"
 import { TextCell } from "../cells/text-cell"
 import { TimeCell } from "../cells/time-cell"
-import { type Schema } from "../../query/schema"
+import { type FieldStatistics } from "../../query/schema"
 import { readFieldValue, type Field } from "../../query/fields"
 import { isChipField, optionsFor } from "./field-presentation"
 import { tableFeatures } from "./features"
@@ -42,13 +42,18 @@ const AttributeHeader = ({ label }: { label: string }) => (
 
 export type DeploymentColumns = ReturnType<typeof columnsFor>
 
-export function columnsFor(schema: Schema, fields: Field[], hiddenAttributeKeys: string[], actions: RowActions) {
+export function columnsFor(
+  statistics: FieldStatistics,
+  fields: Field[],
+  hiddenAttributeKeys: string[],
+  actions: RowActions,
+) {
   const valueColumns = fields.map((field) =>
     helper.accessor((deployment) => readFieldValue(field, deployment) ?? "", {
       id: field.key,
       header: () => (field.attribute ? <AttributeHeader label={field.key} /> : field.label),
       cell: ({ row, table }) =>
-        renderValue(field, row.original, schema, actions, pendingIn(table, row.original.deployment_id)),
+        renderValue(field, row.original, statistics, actions, pendingIn(table, row.original.deployment_id)),
     }),
   )
   const attributesColumn =
@@ -83,7 +88,13 @@ export function columnsFor(schema: Schema, fields: Field[], hiddenAttributeKeys:
   return helper.columns([...valueColumns, ...attributesColumn, actionsColumn])
 }
 
-function renderValue(field: Field, deployment: Deployment, schema: Schema, actions: RowActions, pending: boolean) {
+function renderValue(
+  field: Field,
+  deployment: Deployment,
+  statistics: FieldStatistics,
+  actions: RowActions,
+  pending: boolean,
+) {
   const readOnly = deployment.deleted_at !== null
   const commit = (next: string) => actions.onSetAttribute(deployment.deployment_id, field.key, next)
   switch (field.key) {
@@ -104,11 +115,11 @@ function renderValue(field: Field, deployment: Deployment, schema: Schema, actio
         <TimeCell iso={deployment.deleted_at} suffix={`${daysLeft(deployment.deleted_at)}d left`} />
       )
     default:
-      return isChipField(schema, field) ? (
+      return isChipField(statistics, field) ? (
         <ChipEditCell
           label={field.key}
           value={readFieldValue(field, deployment)}
-          options={optionsFor(schema, field.key)}
+          options={optionsFor(statistics, field.key)}
           pending={pending}
           readOnly={readOnly}
           onCommit={commit}
@@ -122,7 +133,7 @@ function renderValue(field: Field, deployment: Deployment, schema: Schema, actio
           readOnly={readOnly}
           mono={field.key === "oncall"}
           muted={field.key !== "name"}
-          options={field.key === "name" || field.key === "description" ? undefined : optionsFor(schema, field.key)}
+          options={field.key === "name" || field.key === "description" ? undefined : optionsFor(statistics, field.key)}
           onCommit={commit}
         />
       )

@@ -9,7 +9,8 @@ import { QueryBar } from "../components/query-bar"
 import { QueryChips } from "../components/query-chips"
 import { TableSkeleton } from "../components/table-skeleton"
 import { FieldsToggle } from "../components/view-controls"
-import { QUERY_INPUT_ID, useDeploymentsView, type QueryChange } from "../hooks/use-deployments-view"
+import { QUERY_INPUT_ID, useDeploymentsView } from "../hooks/use-deployments-view"
+import type { QueryChange } from "../hooks/use-deployment-query"
 import type { Sorting } from "../query/sort"
 import { useSlashFocus } from "../hooks/use-slash-focus"
 import { useStoreBoundary } from "../hooks/use-store-boundary"
@@ -38,18 +39,11 @@ export const DeploymentsPage = (props: DeploymentsPageProps) => {
 }
 
 const DeploymentsBrowser = (props: DeploymentsPageProps) => {
-  const { query, onQueryChange } = props
   const view = useDeploymentsView(props)
   useSlashFocus(QUERY_INPUT_ID)
   return (
     <>
-      <QueryBar
-        inputId={QUERY_INPUT_ID}
-        query={query}
-        suggestions={view.suggestions}
-        onQueryChange={onQueryChange}
-        onCaretChange={view.onCaretChange}
-      >
+      <QueryBar inputId={QUERY_INPUT_ID} {...view.editor}>
         <FieldsToggle open={view.fieldsOpen} onToggle={view.onToggleFields} />
       </QueryBar>
       <QueryChips chips={view.chips} onClear={view.onClearQuery} />
@@ -82,8 +76,8 @@ const DeploymentsBrowser = (props: DeploymentsPageProps) => {
               <FieldIndexRow
                 key={field.key}
                 field={field}
-                query={view.resolvedQuery}
-                schema={view.schema}
+                plan={view.appliedPlan}
+                catalog={view.catalog}
                 search={view.fieldSearchTerm}
                 total={view.matched.length}
                 visible={view.visible.has(field.key)}

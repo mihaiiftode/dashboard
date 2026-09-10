@@ -1,16 +1,17 @@
-import { render, screen, within } from "@testing-library/react"
+import { screen, within } from "@testing-library/react"
 import { useState } from "react"
 import { describe, expect, it } from "vitest"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import { renderWithProviders } from "@/test/render"
+import { replaceSpan } from "../query/query-edits"
 import { deployments } from "@/test/deployments"
 import { setupUser } from "@/test/user"
-import { parseQuery } from "../query/filter-set"
+import { parseQuery } from "../query/parse-query"
 import { buildSchema } from "../query/schema"
 import { suggest } from "../query/suggest"
 import { EMPTY_VALUE_INDEX, valueIndexOf, type ValueIndex } from "../query/value-index"
 import { QueryBar } from "./query-bar"
 
-const schema = buildSchema(deployments(12))
+const { catalog, statistics } = buildSchema(deployments(12))
 
 const indexOf = (entries: Record<string, number>): ValueIndex =>
   valueIndexOf(Object.entries(entries).map(([value, rows]) => ({ value, rows })))
@@ -22,23 +23,28 @@ type HarnessProps = { initial?: string; index?: ValueIndex }
 const Harness = ({ initial = "", index = EMPTY_VALUE_INDEX }: HarnessProps) => {
   const [query, setQuery] = useState(initial)
   const [caret, setCaret] = useState(initial.length)
+  const suggestions = suggest(parseQuery(query, catalog), caret, catalog, {
+    index,
+    deletedRows: 4,
+    attributeCounts: statistics.attributeCounts,
+  })
   return (
     <QueryBar
       inputId="search"
       query={query}
-      suggestions={suggest(parseQuery(query, schema), caret, schema, { index, deletedRows: 4 })}
+      suggestions={suggestions}
       onQueryChange={setQuery}
       onCaretChange={setCaret}
+      onSuggestionSelect={(insert) => {
+        const next = replaceSpan(query, suggestions.span, insert)
+        setQuery(next.query)
+        return next.caret
+      }}
     />
   )
 }
 
-const renderBar = (props: HarnessProps = {}) =>
-  render(
-    <TooltipProvider>
-      <Harness {...props} />
-    </TooltipProvider>,
-  )
+const renderBar = (props: HarnessProps = {}) => renderWithProviders(<Harness {...props} />)
 
 const searchBox = () => screen.getByRole("combobox", { name: /search and filter/iu })
 

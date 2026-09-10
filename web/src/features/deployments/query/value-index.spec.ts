@@ -3,10 +3,11 @@ import { describe, expect, it } from "vitest"
 import { deletedDaysAgo, deployment, deployments } from "@/test/deployments"
 import type { Deployment } from "../store/schema"
 import { compileValueIndex } from "./compile"
-import { parseQuery } from "./filter-set"
-import { buildSchema, type Schema } from "./schema"
-import { resolveKey } from "./fields"
-import { withoutFieldFilter, topValues, valueIndexOf, type ValueIndex } from "./value-index"
+import { parseQuery } from "./parse-query"
+import { buildSchema } from "./schema"
+import { resolveKey, type FieldCatalog } from "./fields"
+import { withoutFieldFilter } from "./filters"
+import { topValues, valueIndexOf, type ValueIndex } from "./value-index"
 
 const rowsFor = (index: ValueIndex, value: string) => index.values.find((entry) => entry.value === value)?.rows
 
@@ -19,19 +20,19 @@ const collectionOver = (rows: Deployment[]) =>
     }),
   )
 
-const fieldFor = (schema: Schema, key: string) => {
-  const field = resolveKey(schema, key)
+const fieldFor = (catalog: FieldCatalog, key: string) => {
+  const field = resolveKey(catalog, key)
   if (!field) throw new Error(`no field ${key}`)
   return field
 }
 
 const indexFor = async (key: string, query: string, rows: Deployment[]) => {
-  const schema = buildSchema(rows)
-  const field = fieldFor(schema, key)
-  const filters = withoutFieldFilter(parseQuery(query, schema), field)
+  const { catalog } = buildSchema(rows)
+  const field = fieldFor(catalog, key)
+  const filters = withoutFieldFilter(parseQuery(query, catalog).plan, field)
   const collection = collectionOver(rows)
   const live = createLiveQueryCollection((builder) =>
-    compileValueIndex(builder.from({ deployment: collection }), field, filters, schema),
+    compileValueIndex(builder.from({ deployment: collection }), field, filters, catalog),
   )
   await live.preload()
   return { index: valueIndexOf([...live.values()]), collection, live }
@@ -63,28 +64,28 @@ describe("valueIndexOf", () => {
 
 describe("withoutFieldFilter", () => {
   it("drops the tokens that target the indexed field and keeps the rest", () => {
-    const schema = buildSchema(rows)
-    const filters = parseQuery("status:failed team:payments env:prod", schema)
+    const { catalog } = buildSchema(rows)
+    const filters = parseQuery("status:failed team:payments env:prod", catalog)
 
-    const kept = withoutFieldFilter(filters, fieldFor(schema, "status"))
+    const kept = withoutFieldFilter(filters.plan, fieldFor(catalog, "status"))
 
     expect(kept.filters).toMatchObject([{ field: { key: "team" } }, { field: { key: "env" } }])
   })
 
   it("drops a token written with an alias of the indexed field", () => {
-    const schema = buildSchema(rows)
-    const filters = parseQuery("environment:prod status:failed", schema)
+    const { catalog } = buildSchema(rows)
+    const filters = parseQuery("environment:prod status:failed", catalog)
 
-    const kept = withoutFieldFilter(filters, fieldFor(schema, "env"))
+    const kept = withoutFieldFilter(filters.plan, fieldFor(catalog, "env"))
 
     expect(kept.filters).toMatchObject([{ field: { key: "status" } }])
   })
 
   it("keeps the deleted scope when removing a field filter", () => {
-    const schema = buildSchema(rows)
-    const filters = parseQuery("team:payments is:deleted", schema)
+    const { catalog } = buildSchema(rows)
+    const filters = parseQuery("team:payments is:deleted", catalog)
 
-    const kept = withoutFieldFilter(filters, fieldFor(schema, "team"))
+    const kept = withoutFieldFilter(filters.plan, fieldFor(catalog, "team"))
 
     expect(kept.filters).toEqual([])
     expect(kept.scope).toBe("deleted")
