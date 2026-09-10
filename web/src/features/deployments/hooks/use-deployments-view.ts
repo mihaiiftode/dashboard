@@ -1,16 +1,20 @@
 "use client"
 
 import { useCallback, useMemo, useState } from "react"
-import { columnsFor, type RowActions } from "../components/table/columns"
+import {
+  columnsFor,
+  defaultVisible,
+  groupCandidates,
+  type RemovableQueryChip,
+  type RowActions,
+  type Sort,
+} from "../components"
 import { buildSchema, DEFAULT_SORT, type FieldCatalog, type FieldStatistics, type Sorting } from "../query"
-import { defaultVisible, groupCandidates } from "../components/table/field-presentation"
 import { useFooterCounts } from "./use-footer-counts"
 import { useAllDeployments, useDeploymentWrites } from "../store/use-deployments"
 import { useSyncStatus } from "../store/use-sync-status"
 import { sortParser } from "../query/url"
 import { useDeploymentQuery, type QueryChange } from "./use-deployment-query"
-import type { RemovableQueryChip } from "../components/query-chips"
-import type { Sort } from "../components/table/deployments-table"
 
 export const QUERY_INPUT_ID = "search"
 

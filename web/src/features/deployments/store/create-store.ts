@@ -6,7 +6,6 @@ import {
   type RxCollection,
   type RxDatabase,
   type RxReplicationPullStreamItem,
-  type RxReplicationWriteToMasterRow,
   type WithDeleted,
 } from "rxdb/plugins/core"
 import { RxDBMigrationSchemaPlugin } from "rxdb/plugins/migration-schema"

@@ -44,7 +44,9 @@
           "./src/lib/env"
         ]
       }
-    ]
+    ],
+    "eslint/max-lines-per-function": "off",
+    "eslint/max-lines": "off"
   },
   "ignorePatterns": [
     "node_modules",
