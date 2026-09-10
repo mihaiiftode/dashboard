@@ -41,6 +41,7 @@ export const QueryInput = ({
   onSuggestionSelect,
 }: QueryInputProps) => {
   const [open, setOpen] = useState(false)
+  const [highlighted, setHighlighted] = useState<Suggestion | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const { items, preselect } = suggestions
 
@@ -75,6 +76,7 @@ export const QueryInput = ({
       autoHighlight={preselect}
       open={open}
       onOpenChange={setOpen}
+      onItemHighlighted={(item: Suggestion | undefined) => setHighlighted(item ?? null)}
     >
       <AutocompleteInput
         ref={inputRef}
@@ -93,6 +95,14 @@ export const QueryInput = ({
         onFocus={() => {
           syncCaret()
           setOpen(true)
+        }}
+        onKeyDown={(event: React.KeyboardEvent<HTMLInputElement>) => {
+          if (event.key !== "Tab" || !open) return
+          const chosen = highlighted ?? items.at(0)
+          if (!chosen) return
+          event.preventDefault()
+          setOpen(false)
+          placeCaret(onSuggestionSelect(chosen.insert))
         }}
       >
         <Kbd>/</Kbd>

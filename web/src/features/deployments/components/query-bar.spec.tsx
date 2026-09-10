@@ -96,6 +96,30 @@ describe("QueryBar", () => {
     expect(searchBox()).toHaveValue("status:failed ")
   })
 
+  it("takes the first suggestion on Tab", async () => {
+    const user = setupUser()
+    renderBar({ index: STATUS_INDEX })
+
+    await user.click(searchBox())
+    await user.type(searchBox(), "status:")
+    await screen.findByRole("option", { name: /status:active/u })
+    await user.keyboard("{Tab}")
+
+    expect(searchBox()).toHaveValue("status:active ")
+  })
+
+  it("takes the arrowed suggestion on Tab", async () => {
+    const user = setupUser()
+    renderBar({ index: STATUS_INDEX })
+
+    await user.click(searchBox())
+    await user.type(searchBox(), "status:")
+    await screen.findByRole("option", { name: /status:active/u })
+    await user.keyboard("{ArrowDown}{Tab}")
+
+    expect(searchBox()).toHaveValue("status:failed ")
+  })
+
   it("closes the list on Escape and keeps the query", async () => {
     const user = setupUser()
     renderBar({ index: STATUS_INDEX })
