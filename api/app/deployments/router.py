@@ -44,12 +44,21 @@ def get_service(request: Request) -> DeploymentService:
     return request.app.state.deployment_service
 
 
+ServiceDep = Annotated[DeploymentService, Depends(get_service)]
+
+
 def get_change_feed(request: Request) -> ChangeFeed:
     return request.app.state.change_feed
 
 
+FeedDep = Annotated[ChangeFeed, Depends(get_change_feed)]
+
+
 def get_settings(request: Request) -> Settings:
     return request.app.state.settings
+
+
+SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 
 def get_checkpoint(
@@ -75,6 +84,9 @@ def get_checkpoint(
     return Checkpoint(updated_at=updated_after, deployment_id=after_id)
 
 
+CheckpointDep = Annotated[Checkpoint | None, Depends(get_checkpoint)]
+
+
 @router.get(
     "",
     summary="List deployments in checkpoint order",
@@ -89,8 +101,8 @@ def get_checkpoint(
     },
 )
 async def list_deployments(
-    service: Annotated[DeploymentService, Depends(get_service)],
-    after: Annotated[Checkpoint | None, Depends(get_checkpoint)],
+    service: ServiceDep,
+    after: CheckpointDep,
     limit: Annotated[
         ListLimit, Query(description="Maximum deployments to return")
     ] = DEFAULT_LIMIT,
@@ -113,10 +125,7 @@ async def list_deployments(
         }
     },
 )
-async def stream_changes(
-    feed: Annotated[ChangeFeed, Depends(get_change_feed)],
-    settings: Annotated[Settings, Depends(get_settings)],
-) -> EventSourceResponse:
+async def stream_changes(feed: FeedDep, settings: SettingsDep) -> EventSourceResponse:
     return EventSourceResponse(frames(feed), ping=settings.heartbeat_seconds)
 
 
@@ -146,6 +155,9 @@ def get_precondition(
     return int(tag)
 
 
+PreconditionDep = Annotated[int | None, Depends(get_precondition)]
+
+
 @router.get(
     "/{deployment_id}",
     summary="Read one deployment",
@@ -153,9 +165,7 @@ def get_precondition(
     responses={404: documented_problem("No deployment carries that identifier")},
 )
 async def get_deployment(
-    deployment_id: DeploymentId,
-    service: Annotated[DeploymentService, Depends(get_service)],
-    response: Response,
+    deployment_id: DeploymentId, service: ServiceDep, response: Response
 ) -> Deployment:
     found = await service.get(deployment_id)
     response.headers["ETag"] = etag_of(found.revision)
@@ -190,8 +200,8 @@ async def get_deployment(
 async def replace_deployment(
     deployment_id: DeploymentId,
     writable: Writable,
-    service: Annotated[DeploymentService, Depends(get_service)],
-    if_revision: Annotated[int | None, Depends(get_precondition)],
+    service: ServiceDep,
+    if_revision: PreconditionDep,
     response: Response,
 ) -> Deployment:
     written = await service.replace(deployment_id, writable, if_revision=if_revision)
@@ -214,8 +224,7 @@ async def replace_deployment(
     },
 )
 async def delete_deployment(
-    deployment_id: DeploymentId,
-    service: Annotated[DeploymentService, Depends(get_service)],
+    deployment_id: DeploymentId, service: ServiceDep
 ) -> Response:
     deleted = await service.delete(deployment_id)
     return Response(
@@ -236,9 +245,7 @@ async def delete_deployment(
     },
 )
 async def restore_deployment(
-    deployment_id: DeploymentId,
-    service: Annotated[DeploymentService, Depends(get_service)],
-    response: Response,
+    deployment_id: DeploymentId, service: ServiceDep, response: Response
 ) -> Deployment:
     restored = await service.restore(deployment_id)
     response.headers["ETag"] = etag_of(restored.revision)
