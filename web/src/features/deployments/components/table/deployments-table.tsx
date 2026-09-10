@@ -57,7 +57,7 @@ export const DeploymentsTable = memo(function DeploymentsTable({
   onRangeChange,
 }: DeploymentsTableProps) {
   const [expanded, setExpanded] = useState<ExpandedState>(true)
-  const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null)
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
   const grid = useMemo(
     () =>
       [
@@ -110,12 +110,13 @@ export const DeploymentsTable = memo(function DeploymentsTable({
   }, [firstIndex, lastIndex, leafOrdinals, tableRows, onRangeChange])
 
   return (
-    <section
+    <div
       ref={setScrollElement}
       data-slot="table-scroller"
+      role="region"
       tabIndex={0}
       aria-label="Deployments"
-      className="relative min-h-0 flex-1 overflow-auto focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none [&_[data-slot=table-container]]:overflow-visible"
+      className="relative min-h-0 flex-1 overflow-auto focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none **:data-[slot=table-container]:overflow-visible"
     >
       <Table
         className="grid"
@@ -198,7 +199,7 @@ export const DeploymentsTable = memo(function DeploymentsTable({
           })}
         </TableBody>
       </Table>
-    </section>
+    </div>
   )
 })
 
