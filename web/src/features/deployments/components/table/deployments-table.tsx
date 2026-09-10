@@ -75,6 +75,7 @@ export const DeploymentsTable = memo(function DeploymentsTable({
     features: tableFeatures,
     columns,
     data: rows,
+    getRowId: (deployment) => deployment.deployment_id,
     meta,
     state: { sorting, expanded, grouping: groupField ? [groupField.key] : [] },
     onSortingChange: (updater) => {
