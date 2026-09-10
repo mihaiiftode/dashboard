@@ -69,12 +69,17 @@ def get_checkpoint(
         UUID | None, Query(description="Checkpoint tiebreaker on equal timestamps")
     ] = None,
 ) -> Checkpoint | None:
-    if after_id is None:
+    if updated_after is None and after_id is None:
         return None
     if updated_after is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="after_id requires updated_after",
+        )
+    if after_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="updated_after requires after_id",
         )
     return Checkpoint(updated_at=updated_after, deployment_id=after_id)
 

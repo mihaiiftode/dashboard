@@ -184,15 +184,13 @@ async def test_accepts_a_checkpoint_carrying_an_offset(
     assert response.status_code == 200
 
 
-async def test_reads_a_timestamp_without_a_tiebreaker_as_no_checkpoint(
-    client: AsyncClient, rows: list[Deployment]
-) -> None:
+async def test_rejects_a_timestamp_without_a_tiebreaker(client: AsyncClient) -> None:
     response = await client.get(
         "/v1/deployments", params={"updated_after": "2026-09-10T12:00:00Z"}
     )
 
-    assert response.status_code == 200
-    assert len(response.json()["items"]) == len(rows)
+    assert response.status_code == 422
+    assert "after_id" in response.json()["detail"]
 
 
 @pytest.fixture
