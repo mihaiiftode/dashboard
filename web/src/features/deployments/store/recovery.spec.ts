@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { must } from "@/test/must"
 import { deployment, deployments } from "@/test/deployments"
-import { createDeploymentsStore, type DeploymentsStore } from "./create-store"
+import { createDeploymentsStore, type DeploymentsStore, type StoreSeed } from "./create-store"
 import { createFakeDeploymentsApi } from "./fake-api"
 
 let store: DeploymentsStore | undefined
@@ -11,8 +12,9 @@ afterEach(async () => {
 const open = async (
   api: ReturnType<typeof createFakeDeploymentsApi>,
   databaseName = `recovery-${crypto.randomUUID()}`,
+  seed?: StoreSeed,
 ) => {
-  store = await createDeploymentsStore({ api, databaseName, multiInstance: false })
+  store = await createDeploymentsStore({ api, databaseName, multiInstance: false, seed })
   await store.collection.preload()
   return store
 }
@@ -113,6 +115,21 @@ describe("replication recovery", () => {
     await vi.waitFor(() => expect(api.reconciliations.length).toBeGreaterThan(0))
 
     expect(api.reconciliations.length).toBe(1)
+  })
+
+  it("pulls a write that landed after the server seed was taken", async () => {
+    const seeded = deployments(2)
+    const missed = deployment(80)
+    const api = createFakeDeploymentsApi([...seeded, missed])
+    const last = must(seeded.at(-1), "the last seeded row")
+    const current = await open(api, `recovery-${crypto.randomUUID()}`, {
+      rows: seeded,
+      checkpoint: { updated_at: last.updated_at, deployment_id: last.deployment_id },
+    })
+
+    await vi.waitFor(() => expect(current.collection.get(missed.deployment_id)).toBeDefined())
+
+    expect(current.collection.size).toBe(3)
   })
 
   it("removes a cached active row purged while the browser was closed", async () => {

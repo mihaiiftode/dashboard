@@ -101,11 +101,10 @@ export const createDeploymentsStore = async ({
       [COLLECTION_NAME]: { schema: rxdbDeploymentSchema(), migrationStrategies },
     })
     const rxCollection = collections[COLLECTION_NAME] as RxCollection<Deployment>
-    const planted = await plant(rxCollection, seed)
     const stream$ = new Subject<PullStreamItem>()
     acquired.stream$ = stream$
-    const pulled: Pulled = { reconciledAt: 0, checkpoint: undefined }
-    const replication = replicate(rxCollection, api, pullBatchSize, tracker, stream$, pulled, planted)
+    const pulled: Pulled = { reconciledAt: 0, checkpoint: undefined, sown: false }
+    const replication = replicate(rxCollection, api, pullBatchSize, tracker, stream$, pulled, seed)
     acquired.replication = replication
     acquired.unsubscribe = api.subscribe({
       onOpen: () => {
@@ -150,25 +149,9 @@ export const createDeploymentsStore = async ({
   }
 }
 
-const plant = async (
-  rxCollection: RxCollection<Deployment>,
-  seed: StoreSeed | undefined,
-): Promise<Checkpoint | null> => {
-  if (!seed || seed.rows.length === 0) return null
-  if ((await rxCollection.count().exec()) > 0) return seed.checkpoint
-  const { error } = await rxCollection.bulkInsert([...seed.rows])
-  if (error.length > 0) {
-    log.warning("planting the seed left {count} rows unwritten", { count: error.length })
-    return null
-  }
-  log.debug("planted {count} seeded deployments", { count: seed.rows.length })
-  document.cookie = `${PLANTED_COOKIE}=1; path=/; max-age=${PLANTED_COOKIE_SECONDS}; samesite=lax`
-  return seed.checkpoint
-}
-
 type PullStreamItem = RxReplicationPullStreamItem<Deployment, Checkpoint | undefined>
 
-type Pulled = { reconciledAt: number; checkpoint: Checkpoint | undefined }
+type Pulled = { reconciledAt: number; checkpoint: Checkpoint | undefined; sown: boolean }
 
 const replicate = (
   rxCollection: RxCollection<Deployment>,
@@ -177,7 +160,7 @@ const replicate = (
   tracker: SyncTracker,
   stream$: Subject<PullStreamItem>,
   pulled: Pulled,
-  planted: Checkpoint | null,
+  seed: StoreSeed | undefined,
 ): RxReplicationState<Deployment, Checkpoint | undefined> => {
   const acknowledged = new Map<string, Deployment>()
   return replicateRxCollection<Deployment, Checkpoint | undefined>({
@@ -194,8 +177,9 @@ const replicate = (
     pull: {
       stream$: stream$.asObservable(),
       batchSize: pullBatchSize,
-      initialCheckpoint: planted ?? undefined,
       handler: async (lastCheckpoint, batchSize) => {
+        const sown = sow(seed, lastCheckpoint, pulled, stream$)
+        if (sown) return sown
         const page = await api.list({ after: lastCheckpoint ?? null, limit: batchSize })
         let purged: WithDeleted<Deployment>[] = []
         if (page.items.length < batchSize && Date.now() - pulled.reconciledAt >= RECONCILE_EVERY_MS) {
@@ -212,6 +196,25 @@ const replicate = (
       },
     },
   })
+}
+
+const sow = (
+  seed: StoreSeed | undefined,
+  lastCheckpoint: Checkpoint | undefined,
+  pulled: Pulled,
+  stream$: Subject<PullStreamItem>,
+): { documents: WithDeleted<Deployment>[]; checkpoint: Checkpoint } | null => {
+  if (pulled.sown || lastCheckpoint !== undefined) return null
+  if (!seed || seed.rows.length === 0 || seed.checkpoint === null) return null
+  pulled.sown = true
+  pulled.checkpoint = seed.checkpoint
+  log.debug("sowed {count} seeded deployments", { count: seed.rows.length })
+  queueMicrotask(() => stream$.next("RESYNC"))
+  document.cookie = `${PLANTED_COOKIE}=1; path=/; max-age=${PLANTED_COOKIE_SECONDS}; samesite=lax`
+  return {
+    documents: seed.rows.map((row) => ({ ...row, _deleted: false })),
+    checkpoint: seed.checkpoint,
+  }
 }
 
 const checkpointOf = (items: Deployment[]): Checkpoint | undefined => {
