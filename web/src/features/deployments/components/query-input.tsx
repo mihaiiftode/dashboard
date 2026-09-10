@@ -99,14 +99,14 @@ export const QueryInput = ({
       </AutocompleteInput>
       <AutocompleteContent className="max-w-2xl">
         <AutocompleteEmpty>No matches for this key</AutocompleteEmpty>
-        <AutocompleteList>{(item: Suggestion) => <SuggestionRow item={item} />}</AutocompleteList>
+        <AutocompleteList>{(item: Suggestion) => <SuggestionRow key={item.id} item={item} />}</AutocompleteList>
       </AutocompleteContent>
     </Autocomplete>
   )
 }
 
 const SuggestionRow = ({ item }: { item: Suggestion }) => (
-  <AutocompleteItem key={item.id} value={item} data-slot="query-suggestion">
+  <AutocompleteItem value={item} data-slot="query-suggestion">
     <span className={cn("font-mono text-xs", KIND_CLASS[item.kind])}>{item.label}</span>
     {item.detail ? <span className="text-xs text-muted-foreground">{item.detail}</span> : null}
     {item.count === undefined ? null : (
