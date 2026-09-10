@@ -19,7 +19,7 @@ export type Field = {
   key: string
   label: string
   kind: FieldKind
-  normalize?: (v: string) => string
+  aliases?: Readonly<Record<string, string>>
 } & ({ attribute: true } | { attribute: false; column: StoredColumn })
 
 const ENV_ALIASES: Record<string, string> = { prod: "production", stage: "staging", dev: "development" }
@@ -39,7 +39,7 @@ export const FIXED_FIELDS: Field[] = [
     kind: FieldKind.Enum,
     attribute: false,
     column: "type",
-    normalize: (v) => TYPE_ALIASES[v.toLowerCase()] ?? v.toLowerCase(),
+    aliases: TYPE_ALIASES,
   },
   {
     key: "env",
@@ -47,7 +47,7 @@ export const FIXED_FIELDS: Field[] = [
     kind: FieldKind.Enum,
     attribute: false,
     column: "environment",
-    normalize: (v) => ENV_ALIASES[v.toLowerCase()] ?? v.toLowerCase(),
+    aliases: ENV_ALIASES,
   },
   { key: "version", label: "Version", kind: FieldKind.String, attribute: false, column: "version" },
   { key: "creator", label: "Creator", kind: FieldKind.String, attribute: false, column: "created_by" },

@@ -158,9 +158,14 @@ const resolveClause = (clause: Clause, literal: Literal | null, comparison: Comp
       kind: FilterKind.Field,
       field,
       operator,
-      value: operator === FilterOperator.Glob ? value : (field.normalize?.(value) ?? value.toLowerCase()),
+      value: operator === FilterOperator.Glob ? value : normalized(field, value),
     },
   }
+}
+
+const normalized = (field: Field, value: string): string => {
+  const lowered = value.toLowerCase()
+  return field.aliases?.[lowered] ?? lowered
 }
 
 const literalOf = (tag: TagToken): Literal | null =>

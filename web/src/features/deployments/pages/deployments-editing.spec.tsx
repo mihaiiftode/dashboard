@@ -90,7 +90,7 @@ describe("editing a deployment", () => {
     await user.keyboard("payments-api{Enter}")
 
     await within(table).findByText("payments-api")
-    expect((await pendingRows()).every((text) => text.includes("payments-api"))).toBe(true)
+    await waitFor(async () => expect((await pendingRows()).every((text) => text.includes("payments-api"))).toBe(true))
 
     release()
 
