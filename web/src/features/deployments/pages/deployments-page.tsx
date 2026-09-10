@@ -1,16 +1,14 @@
 "use client"
 
-import {
-  DeploymentsTable,
-  FeatureBoundary,
-  FieldIndexRow,
-  FieldsPanel,
-  FieldsToggle,
-  NoMatches,
-  QueryBar,
-  QueryChips,
-  TableSkeleton,
-} from "../components"
+import { DeploymentsTable } from "../components/table/deployments-table"
+import { FeatureBoundary } from "../components/feature-boundary"
+import { FieldIndexRow } from "../components/field-index-row"
+import { FieldsPanel } from "../components/fields-panel"
+import { NoMatches } from "../components/no-matches"
+import { QueryBar } from "../components/query-bar"
+import { QueryChips } from "../components/query-chips"
+import { TableSkeleton } from "../components/table-skeleton"
+import { FieldsToggle } from "../components/view-controls"
 import { QUERY_INPUT_ID, useDeploymentsView } from "../hooks/use-deployments-view"
 import type { QueryChange } from "../hooks/use-deployment-query"
 import type { Sorting } from "../query/sort"
@@ -63,7 +61,6 @@ const DeploymentsBrowser = (props: DeploymentsPageProps) => {
               groupKey={view.group}
               sort={view.sort}
               onSortChange={view.onTableSortChange}
-              onRangeChange={view.onRangeChange}
             />
           )}
         </div>

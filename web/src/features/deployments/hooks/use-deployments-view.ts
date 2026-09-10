@@ -1,15 +1,13 @@
 "use client"
 
 import { useCallback, useMemo, useState } from "react"
-import {
-  columnsFor,
-  defaultVisible,
-  groupCandidates,
-  type RemovableQueryChip,
-  type RowActions,
-  type Sort,
-} from "../components"
-import { buildSchema, DEFAULT_SORT, type FieldCatalog, type FieldStatistics, type Sorting } from "../query"
+import { columnsFor, type RowActions } from "../components/table/columns"
+import { defaultVisible, groupCandidates } from "../components/table/field-presentation"
+import { buildSchema, type FieldStatistics } from "../query/schema"
+import type { FieldCatalog } from "../query/fields"
+import { DEFAULT_SORT, type Sorting } from "../query/sort"
+import type { RemovableQueryChip } from "../components/query-chips"
+import type { Sort } from "../components/table/deployments-table"
 import { useFooterCounts } from "./use-footer-counts"
 import { useAllDeployments, useDeploymentWrites } from "../store/use-deployments"
 import { useSyncStatus } from "../store/use-sync-status"
@@ -101,7 +99,7 @@ export const useDeploymentsView = ({ query, onQueryChange, group, onGroupChange,
     () => columnsFor(statistics, fields, hiddenAttributeKeys, actions),
     [statistics, fields, hiddenAttributeKeys, actions],
   )
-  const onRangeChange = useFooterCounts(matched.length, total, sync.connection)
+  useFooterCounts(matched.length, total, sync.connection)
 
   return {
     rows,
@@ -131,7 +129,6 @@ export const useDeploymentsView = ({ query, onQueryChange, group, onGroupChange,
     onToggleColumn,
     onResetColumns,
     onToggleFields,
-    onRangeChange,
   }
 }
 

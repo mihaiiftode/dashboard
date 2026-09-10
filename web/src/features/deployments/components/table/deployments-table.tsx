@@ -6,6 +6,7 @@ import { useVirtualizer } from "@tanstack/react-virtual"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
 import type { Deployment } from "../../store/schema"
 import { cn } from "@/lib/utils"
+import { usePublishVisibleRange, type VisibleRange } from "@/components/shell/footer-status"
 import type { Field } from "../../query/fields"
 import { tableFeatures, type DeploymentColumns, type DeploymentsTableMeta } from "./columns"
 import { GroupRow } from "./group-row"
@@ -40,7 +41,6 @@ type DeploymentsTableProps = {
   groupKey: string | null
   sort: Sort
   onSortChange: (next: Sort) => void
-  onRangeChange: (start: number, end: number) => void
 }
 
 export const DeploymentsTable = memo(function DeploymentsTable({
@@ -52,7 +52,6 @@ export const DeploymentsTable = memo(function DeploymentsTable({
   groupKey,
   sort,
   onSortChange,
-  onRangeChange,
 }: DeploymentsTableProps) {
   const [expanded, setExpanded] = useState<ExpandedState>(true)
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
@@ -97,15 +96,13 @@ export const DeploymentsTable = memo(function DeploymentsTable({
   const items = virtualizer.getVirtualItems()
   const firstIndex = items[0]?.index ?? 0
   const lastIndex = items.at(-1)?.index ?? -1
-  useEffect(() => {
-    if (lastIndex < 0) {
-      onRangeChange(0, 0)
-      return
-    }
+  const visible = useMemo<VisibleRange>(() => {
+    if (lastIndex < 0) return { start: 0, end: 0 }
     const offset = tableRows[firstIndex].getIsGrouped() ? 1 : 0
     const start = Math.max(1, leafOrdinals[firstIndex] + offset)
-    onRangeChange(Math.min(start, leafOrdinals[lastIndex]), leafOrdinals[lastIndex])
-  }, [firstIndex, lastIndex, leafOrdinals, tableRows, onRangeChange])
+    return { start: Math.min(start, leafOrdinals[lastIndex]), end: leafOrdinals[lastIndex] }
+  }, [firstIndex, lastIndex, leafOrdinals, tableRows])
+  usePublishVisibleRange(visible)
 
   return (
     <div

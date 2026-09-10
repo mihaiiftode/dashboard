@@ -2,15 +2,11 @@ import { screen, within } from "@testing-library/react"
 import { useState } from "react"
 import { describe, expect, it } from "vitest"
 import { renderWithProviders } from "@/test/render"
-import {
-  buildSchema,
-  EMPTY_VALUE_INDEX,
-  parseQuery,
-  replaceSpan,
-  suggest,
-  valueIndexOf,
-  type ValueIndex,
-} from "../query"
+import { replaceSpan } from "../query/query-edits"
+import { parseQuery } from "../query/parse-query"
+import { buildSchema } from "../query/schema"
+import { suggest } from "../query/suggest"
+import { EMPTY_VALUE_INDEX, valueIndexOf, type ValueIndex } from "../query/value-index"
 import { deployments } from "@/test/deployments"
 import { setupUser } from "@/test/user"
 import { QueryBar } from "./query-bar"

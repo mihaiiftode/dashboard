@@ -4,20 +4,22 @@ export type FieldDifference = { key: string; attempted: string; winning: string 
 
 const FIXED_KEYS = ["version", "status", "type", "environment"] as const
 
-export const differencesBetween = (attempted: Deployment, winning: Deployment): FieldDifference[] => [
-  ...FIXED_KEYS.filter((key) => attempted[key] !== winning[key]).map((key) => ({
-    key,
-    attempted: attempted[key],
-    winning: winning[key],
-  })),
-  ...attributeKeys(attempted, winning)
-    .filter((key) => attempted.attributes[key] !== winning.attributes[key])
-    .map((key) => ({
+export const differencesBetween = (attempted: Deployment, winning: Deployment): FieldDifference[] => {
+  const differences: FieldDifference[] = []
+  for (const key of FIXED_KEYS) {
+    if (attempted[key] === winning[key]) continue
+    differences.push({ key, attempted: attempted[key], winning: winning[key] })
+  }
+  for (const key of attributeKeys(attempted, winning)) {
+    if (attempted.attributes[key] === winning.attributes[key]) continue
+    differences.push({
       key,
       attempted: attempted.attributes[key] ?? "",
       winning: winning.attributes[key] ?? "",
-    })),
-]
+    })
+  }
+  return differences
+}
 
 const attributeKeys = (attempted: Deployment, winning: Deployment): string[] => [
   ...new Set([...Object.keys(attempted.attributes), ...Object.keys(winning.attributes)]),

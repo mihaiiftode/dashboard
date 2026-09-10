@@ -46,7 +46,8 @@
       }
     ],
     "eslint/max-lines-per-function": "off",
-    "eslint/max-lines": "off"
+    "eslint/max-lines": "off",
+    "import/max-dependencies": "off"
   },
   "ignorePatterns": [
     "node_modules",

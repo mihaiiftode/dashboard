@@ -82,19 +82,19 @@ const keyItems = (
   attributeCounts: ReadonlyMap<string, number>,
 ): Suggestion[] => {
   const typed = partial.toLowerCase()
-  const items = [...catalog.fields.map((field) => field.key), ...DIRECTIVE_KEYS]
-    .filter((key) => key.startsWith(typed))
-    .map<Suggestion>((key) => {
-      const field = catalog.byKey.get(key)
-      return {
-        id: `key:${key}`,
-        kind: DIRECTIVE_KEYS.includes(key) ? "directive" : "key",
-        label: `${key}:`,
-        detail: DIRECTIVE_DETAIL[key] ?? (field?.attribute ? "attribute" : field?.kind),
-        count: field?.attribute ? attributeCounts.get(key) : undefined,
-        insert: `${key}:`,
-      }
+  const items: Suggestion[] = []
+  for (const key of catalog.fields.map((field) => field.key).concat(DIRECTIVE_KEYS)) {
+    if (!key.startsWith(typed)) continue
+    const field = catalog.byKey.get(key)
+    items.push({
+      id: `key:${key}`,
+      kind: DIRECTIVE_KEYS.includes(key) ? "directive" : "key",
+      label: `${key}:`,
+      detail: DIRECTIVE_DETAIL[key] ?? (field?.attribute ? "attribute" : field?.kind),
+      count: field?.attribute ? attributeCounts.get(key) : undefined,
+      insert: `${key}:`,
     })
+  }
   if (partial === "") return items
   return [
     ...items,
@@ -118,15 +118,18 @@ const scopeItems = (clause: Clause, context: SuggestContext): Suggestion[] => {
 
 const dayItems = (clause: Clause, field: Field): Suggestion[] => {
   const day = clause.partial === "" ? today() : clause.partial
-  return Object.keys(DAY_DETAIL)
-    .filter((comparator) => comparator.startsWith(clause.comparator))
-    .map((comparator) => ({
+  const items: Suggestion[] = []
+  for (const comparator of Object.keys(DAY_DETAIL)) {
+    if (!comparator.startsWith(clause.comparator)) continue
+    items.push({
       id: `${field.key}:${comparator}${day}`,
       kind: "value",
       label: `${field.key}:${comparator}${day}`,
       detail: DAY_DETAIL[comparator],
       insert: `${field.key}:${comparator}${day} `,
-    }))
+    })
+  }
+  return items
 }
 
 const valueItems = (clause: Clause, field: Field, index: ValueIndex): Suggestion[] =>

@@ -5,8 +5,9 @@ import { ChevronRightIcon, Columns3Icon, LayersIcon, TagIcon } from "lucide-reac
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import type { Field } from "../query/fields"
-import { topValues, type ValueIndex } from "../query/value-index"
+import { topValues, type ValueCount, type ValueIndex } from "../query/value-index"
 import { cn } from "@/lib/utils"
+import { FieldValues } from "./field-values"
 
 const TOP = 5
 const TOP_WHEN_SEARCHING = 8
@@ -23,6 +24,15 @@ export type FieldRowProps = {
   onFilter: (value: string) => void
 }
 
+type Shown = { open: boolean; values: readonly ValueCount[] }
+
+const shownFor = (field: Field, index: ValueIndex, search: string, manualOpen: boolean): Shown | null => {
+  if (search === "") return { open: manualOpen, values: topValues(index, "", TOP) }
+  const hits = topValues(index, search, TOP_WHEN_SEARCHING)
+  if (!field.key.includes(search) && hits.length === 0) return null
+  return { open: hits.length > 0 || manualOpen, values: hits.length > 0 ? hits : topValues(index, "", TOP) }
+}
+
 export const FieldRow = ({
   field,
   index,
@@ -35,13 +45,10 @@ export const FieldRow = ({
   onFilter,
 }: FieldRowProps) => {
   const [manualOpen, setManualOpen] = useState(false)
-  const keyHit = search !== "" && field.key.includes(search)
-  const hits = search === "" ? [] : topValues(index, search, TOP_WHEN_SEARCHING)
-  if (search !== "" && !keyHit && hits.length === 0) return null
-  const open = search === "" ? manualOpen : hits.length > 0 || manualOpen
-  const values = hits.length > 0 ? hits : topValues(index, "", TOP)
+  const shown = shownFor(field, index, search, manualOpen)
+  if (!shown) return null
   return (
-    <Collapsible open={open} onOpenChange={setManualOpen}>
+    <Collapsible open={shown.open} onOpenChange={setManualOpen}>
       <div className="flex h-8 items-center gap-1 rounded-sm pr-1 hover:bg-muted">
         <CollapsibleTrigger
           render={
@@ -54,7 +61,7 @@ export const FieldRow = ({
         >
           <ChevronRightIcon
             data-icon="inline-start"
-            className={cn("transition-transform motion-reduce:transition-none", open && "rotate-90")}
+            className={cn("transition-transform motion-reduce:transition-none", shown.open && "rotate-90")}
           />
           {field.attribute ? <TagIcon className="size-3 shrink-0 opacity-60" aria-hidden /> : null}
           <span className="truncate">{field.key}</span>
@@ -65,51 +72,39 @@ export const FieldRow = ({
             {index.covered.toLocaleString()}
           </span>
         </CollapsibleTrigger>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label={visible ? `Hide ${field.key} column` : `Show ${field.key} column`}
-          aria-pressed={visible}
-          className={cn(!visible && "text-muted-foreground/50")}
+        <FieldToggle
+          on={visible}
+          label={visible ? `Hide ${field.key} column` : `Show ${field.key} column`}
           onClick={onToggleColumn}
         >
           <Columns3Icon />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label={grouped ? `Stop grouping by ${field.key}` : `Group by ${field.key}`}
-          aria-pressed={grouped}
-          className={cn(!grouped && "text-muted-foreground/50")}
+        </FieldToggle>
+        <FieldToggle
+          on={grouped}
+          label={grouped ? `Stop grouping by ${field.key}` : `Group by ${field.key}`}
           onClick={onGroup}
         >
           <LayersIcon />
-        </Button>
+        </FieldToggle>
       </div>
       <CollapsibleContent className="flex flex-col gap-0.5 pb-1 pl-6">
-        {values.length === 0 ? (
-          <span className="px-1.5 text-xs text-muted-foreground">no values in current results</span>
-        ) : null}
-        {values.map((entry) => (
-          <Button
-            key={entry.value}
-            variant="ghost"
-            size="xs"
-            className="h-6 w-full justify-start gap-2 px-1.5 font-mono text-xs font-normal"
-            aria-label={`Filter ${field.key}: ${entry.value}`}
-            onClick={() => onFilter(entry.value)}
-          >
-            <span className="min-w-0 flex-1 truncate text-left">{entry.value}</span>
-            <span className="text-[11px] text-muted-foreground tabular-nums">{entry.rows.toLocaleString()}</span>
-            <span className="h-1 w-12 overflow-hidden rounded-full bg-muted">
-              <span
-                className="block h-full bg-foreground/40"
-                style={{ width: `${Math.round((entry.rows / Math.max(1, total)) * 100)}%` }}
-              />
-            </span>
-          </Button>
-        ))}
+        <FieldValues field={field} values={shown.values} total={total} onFilter={onFilter} />
       </CollapsibleContent>
     </Collapsible>
   )
 }
+
+type FieldToggleProps = { on: boolean; label: string; onClick: () => void; children: React.ReactNode }
+
+const FieldToggle = ({ on, label, onClick, children }: FieldToggleProps) => (
+  <Button
+    variant="ghost"
+    size="icon-xs"
+    aria-label={label}
+    aria-pressed={on}
+    className={cn(!on && "text-muted-foreground/50")}
+    onClick={onClick}
+  >
+    {children}
+  </Button>
+)
