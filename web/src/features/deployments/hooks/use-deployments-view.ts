@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useMemo, useState } from "react"
+import { startTransition, useCallback, useMemo, useState } from "react"
 import { columnsFor, type RowActions } from "../components/table/columns"
 import { defaultVisible, groupCandidates } from "../components/table/field-presentation"
 import type { FieldStatistics } from "../query/schema"
@@ -98,7 +98,7 @@ export const useDeploymentsView = ({ query, onQueryChange, group, onGroupChange,
   )
   const onResetColumns = useCallback(() => setChosen(null), [])
   const onFieldSearchChange = useCallback((next: string) => setFieldSearch(next), [])
-  const onToggleFields = useCallback(() => setFieldsOpen((open) => !open), [])
+  const onToggleFields = useCallback(() => startTransition(() => setFieldsOpen((open) => !open)), [])
   const columns = useMemo(
     () => columnsFor(statistics, fields, hiddenAttributeKeys, actions),
     [statistics, fields, hiddenAttributeKeys, actions],

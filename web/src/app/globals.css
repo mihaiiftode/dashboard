@@ -175,3 +175,48 @@
     scroll-behavior: auto !important;
   }
 }
+
+@keyframes view-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes view-rise {
+  from {
+    transform: translateY(8px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+::view-transition-old(.settle-out) {
+  animation: 150ms ease-in both view-fade reverse;
+}
+
+::view-transition-new(.settle-in) {
+  animation:
+    210ms ease-out 150ms both view-fade,
+    260ms ease-out both view-rise;
+}
+
+::view-transition-old(.panel-out) {
+  animation: 150ms ease-in both view-fade reverse;
+}
+
+::view-transition-new(.panel-in) {
+  animation: 210ms ease-out 150ms both view-fade;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}

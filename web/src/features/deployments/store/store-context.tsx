@@ -1,6 +1,15 @@
 "use client"
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
+import {
+  createContext,
+  startTransition,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react"
 import { env } from "@/lib/env"
 import { createLogger } from "@/lib/logger"
 import { createFetchDeploymentsApi, type DeploymentsApi } from "./api"
@@ -73,7 +82,7 @@ const OpenStore = ({ api, databaseName, seed, retry, children }: OpenStoreProps)
     const show = async () => {
       try {
         const store = await opening
-        if (!abandoned) setState({ status: "ready", store })
+        if (!abandoned) startTransition(() => setState({ status: "ready", store }))
       } catch (cause) {
         const error = cause as Error
         log.error("store failed to open: {message}", { message: error.message })

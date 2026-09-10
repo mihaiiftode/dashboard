@@ -1,5 +1,6 @@
 "use client"
 
+import { Transition } from "@/components/view-transition"
 import { DeploymentsTable } from "../components/table/deployments-table"
 import { FeatureBoundary } from "../components/feature-boundary"
 import { FieldIndexRow } from "../components/field-index-row"
@@ -30,10 +31,18 @@ export const DeploymentsPage = (props: DeploymentsPageProps) => {
     <FeatureBoundary
       loading={boundary.loading}
       error={boundary.error}
-      pending={<TableSkeleton />}
+      pending={
+        <Transition exit="settle-out" default="none">
+          <TableSkeleton />
+        </Transition>
+      }
       onRetry={boundary.onRetry}
     >
-      {boundary.ready ? <DeploymentsBrowser {...props} /> : null}
+      {boundary.ready ? (
+        <Transition enter="settle-in" default="none">
+          <DeploymentsBrowser {...props} />
+        </Transition>
+      ) : null}
     </FeatureBoundary>
   )
 }
@@ -65,29 +74,31 @@ const DeploymentsBrowser = (props: DeploymentsPageProps) => {
           )}
         </div>
         {view.fieldsOpen ? (
-          <FieldsPanel
-            total={view.matched.length}
-            search={view.fieldSearch}
-            onSearchChange={view.onFieldSearchChange}
-            onResetColumns={view.onResetColumns}
-          >
-            {view.listedFields.map((field) => (
-              <FieldIndexRow
-                key={field.key}
-                field={field}
-                plan={view.appliedPlan}
-                catalog={view.catalog}
-                cutoff={view.cutoff}
-                search={view.fieldSearchTerm}
-                total={view.matched.length}
-                visible={view.visible.has(field.key)}
-                grouped={view.group === field.key}
-                onToggleColumn={() => view.onToggleColumn(field.key)}
-                onGroup={() => view.onGroupChange(view.group === field.key ? null : field.key)}
-                onFilter={(value) => view.onFilter(field.key, value)}
-              />
-            ))}
-          </FieldsPanel>
+          <Transition enter="panel-in" exit="panel-out" default="none">
+            <FieldsPanel
+              total={view.matched.length}
+              search={view.fieldSearch}
+              onSearchChange={view.onFieldSearchChange}
+              onResetColumns={view.onResetColumns}
+            >
+              {view.listedFields.map((field) => (
+                <FieldIndexRow
+                  key={field.key}
+                  field={field}
+                  plan={view.appliedPlan}
+                  catalog={view.catalog}
+                  cutoff={view.cutoff}
+                  search={view.fieldSearchTerm}
+                  total={view.matched.length}
+                  visible={view.visible.has(field.key)}
+                  grouped={view.group === field.key}
+                  onToggleColumn={() => view.onToggleColumn(field.key)}
+                  onGroup={() => view.onGroupChange(view.group === field.key ? null : field.key)}
+                  onFilter={(value) => view.onFilter(field.key, value)}
+                />
+              ))}
+            </FieldsPanel>
+          </Transition>
         ) : null}
       </div>
     </>
