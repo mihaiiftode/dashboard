@@ -84,22 +84,16 @@ function ToastDescription({ className, ...props }: ToastPrimitive.Description.Pr
   )
 }
 
-function ToastAction({
-  className,
-  render = <Button variant="outline" size="sm" />,
-  ...props
-}: ToastPrimitive.Action.Props) {
+const ACTION_RENDER = <Button variant="outline" size="sm" />
+const CLOSE_RENDER = <Button variant="ghost" size="icon-sm" />
+
+function ToastAction({ className, render = ACTION_RENDER, ...props }: ToastPrimitive.Action.Props) {
   return (
     <ToastPrimitive.Action data-slot="toast-action" render={render} className={cn("shrink-0", className)} {...props} />
   )
 }
 
-function ToastClose({
-  className,
-  children,
-  render = <Button variant="ghost" size="icon-sm" />,
-  ...props
-}: ToastPrimitive.Close.Props) {
+function ToastClose({ className, children, render = CLOSE_RENDER, ...props }: ToastPrimitive.Close.Props) {
   return (
     <ToastPrimitive.Close
       data-slot="toast-close"
