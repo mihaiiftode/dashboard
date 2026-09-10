@@ -157,3 +157,21 @@ describe("quoteValue", () => {
     }
   })
 })
+
+describe("comparator support", () => {
+  it.each(["status:>failed", "status:<failed", "name:>=api", "name:<=api", "id:>abc"])(
+    "marks %s as unsupported and narrows by nothing",
+    (query) => {
+      const parsed = setOf(query)
+
+      expect(parsed.plan.filters).toEqual([])
+      expect(parsed.diagnostics).toHaveLength(1)
+      expect(parsed.clauses).toHaveLength(1)
+    },
+  )
+
+  it.each(["created:>2026-09-10", "created:<=2026-09-10"])("still accepts %s on a date field", (query) => {
+    expect(setOf(query).diagnostics).toEqual([])
+    expect(setOf(query).plan.filters).toHaveLength(1)
+  })
+})

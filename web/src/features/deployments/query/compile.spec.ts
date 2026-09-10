@@ -100,6 +100,17 @@ describe("compileQuery", () => {
     expect(await namesFor("created:>2026-09-10", dated)).toEqual([after.attributes.name])
   })
 
+  it("matches an exact value whatever case it was typed or stored in", async () => {
+    const mixed = deployment(1, { attributes: { name: "Payments" } })
+
+    expect(await namesFor("name:=Payments", [mixed])).toEqual(["Payments"])
+    expect(await namesFor("name:=payments", [mixed])).toEqual(["Payments"])
+  })
+
+  it("narrows by nothing when a relational comparator is used on a non-date field", async () => {
+    expect((await namesFor("status:>failed", rows)).toSorted()).toEqual((await namesFor("", rows)).toSorted())
+  })
+
   it("matches a calendar day", async () => {
     expect(await namesFor("created:2026-09-09", twoDays)).toEqual([firstDay.attributes.name])
   })

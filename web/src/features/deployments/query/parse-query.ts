@@ -19,6 +19,7 @@ const INVALID = { issue: "Unknown field, missing value, or unsupported filter" }
 const SYNTAX_ISSUE = "Incomplete or invalid query syntax"
 const SCOPE_KEY = "is"
 const GLOB = /[*?]/u
+const RELATIONAL = new Set<ComparisonOperator>([":<", ":<=", ":>", ":>="])
 
 export const DELETED_SCOPE = "deleted"
 const LIVE_SCOPE = "live"
@@ -148,6 +149,7 @@ const resolveClause = (clause: Clause, literal: Literal | null, comparison: Comp
     const day = parseCalendarDay(value)
     return day ? { filter: { kind: FilterKind.Date, field, ...DATE_BOUNDS[comparison](day) } } : INVALID
   }
+  if (RELATIONAL.has(comparison)) return INVALID
   if (operator !== FilterOperator.Glob && (field.kind === FieldKind.Enum || comparison === ":=")) {
     operator = FilterOperator.Equals
   }

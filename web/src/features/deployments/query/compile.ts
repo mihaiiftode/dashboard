@@ -3,7 +3,6 @@ import {
   coalesce,
   concat,
   count,
-  eq,
   gt,
   gte,
   ilike,
@@ -97,16 +96,17 @@ const compileFilter = (row: DeploymentRefs, filter: Filter, catalog: FieldCatalo
 const matchString = (target: Parameters<typeof ilike>[0], value: string, operator: FilterOperator): Expression => {
   switch (operator) {
     case FilterOperator.Equals:
-      return eq(target, value)
+      return ilike(target, escapeLike(value))
     case FilterOperator.Contains:
-      return ilike(target, "%" + value.replaceAll(/[%_]/gu, "\\$&") + "%")
+      return ilike(target, "%" + escapeLike(value) + "%")
     case FilterOperator.Glob:
       return ilike(target, globPattern(value))
   }
 }
 
-const globPattern = (value: string): string =>
-  value.replaceAll(/[%_]/gu, "\\$&").replaceAll("*", "%").replaceAll("?", "_")
+const escapeLike = (value: string): string => value.replaceAll(/[%_]/gu, "\\$&")
+
+const globPattern = (value: string): string => escapeLike(value).replaceAll("*", "%").replaceAll("?", "_")
 
 const fieldReference = (row: DeploymentRefs, field: Field) =>
   field.attribute ? row.attributes[field.key] : row[field.column]
