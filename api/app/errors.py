@@ -20,6 +20,7 @@ from app.deployments.service import (
 logger = logging.getLogger(__name__)
 
 PROBLEM_MEDIA_TYPE = "application/problem+json"
+PROBLEM_REF = {"$ref": "#/components/schemas/Problem"}
 
 
 class Problem(BaseModel):
@@ -29,6 +30,13 @@ class Problem(BaseModel):
     detail: str | None = None
     instance: str | None = None
     errors: list[dict[str, object]] | None = None
+
+
+PROBLEM_CONTENT = {"application/problem+json": {"schema": PROBLEM_REF}}
+
+
+def documented_problem(description: str) -> dict[str, object]:
+    return {"model": Problem, "content": PROBLEM_CONTENT, "description": description}
 
 
 def problem_response(

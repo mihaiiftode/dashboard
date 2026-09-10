@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pymongo import AsyncMongoClient
 from pymongo.errors import PyMongoError
 
+from app.errors import documented_problem
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
@@ -31,7 +33,7 @@ def get_health_check(request: Request) -> HealthCheck:
     tags=["health"],
     summary="Report whether the API can reach its database",
     description="Answers 200 when a database ping succeeds and 503 when it does not.",
-    responses={503: {"description": "The database did not answer a ping"}},
+    responses={503: documented_problem("The database did not answer a ping")},
 )
 async def health(
     check: Annotated[HealthCheck, Depends(get_health_check)],

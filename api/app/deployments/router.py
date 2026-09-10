@@ -30,21 +30,12 @@ from app.deployments.models import (
 from app.deployments.service import (
     DeploymentService,
 )
-from app.errors import Problem
+from app.errors import documented_problem
 from app.settings import Settings
 
 router = APIRouter(prefix="/v1/deployments", tags=["deployments"])
 
 RECONNECT_MS = 1000
-
-PROBLEM = {
-    "content": {"application/problem+json": {"schema": Problem.model_json_schema()}}
-}
-
-
-def problem(description: str) -> dict[str, object]:
-    return {**PROBLEM, "description": description}
-
 
 DeploymentId = Annotated[UUID, Path(description="Identifier of the deployment")]
 
@@ -92,7 +83,11 @@ def get_checkpoint(
         "so clients can scope them, plus the checkpoint to resume from while more remain."
     ),
     response_model=DeploymentPage,
-    responses={422: problem("The limit or the checkpoint parameters are out of range")},
+    responses={
+        422: documented_problem(
+            "The limit or the checkpoint parameters are out of range"
+        )
+    },
 )
 async def list_deployments(
     service: Annotated[DeploymentService, Depends(get_service)],
@@ -157,7 +152,7 @@ def get_precondition(
     summary="Read one deployment",
     description="Returns the deployment and the ETag a later write can use as If-Match.",
     response_model=Deployment,
-    responses={404: problem("No deployment carries that identifier")},
+    responses={404: documented_problem("No deployment carries that identifier")},
 )
 async def get_deployment(
     deployment_id: DeploymentId,
@@ -179,16 +174,18 @@ async def get_deployment(
     ),
     response_model=Deployment,
     responses={
-        400: problem("If-Match is not a version tag from an earlier response"),
-        404: problem("No deployment carries that identifier"),
-        409: problem(
+        400: documented_problem(
+            "If-Match is not a version tag from an earlier response"
+        ),
+        404: documented_problem("No deployment carries that identifier"),
+        409: documented_problem(
             "The deployment is deleted and cannot be edited until it is restored"
         ),
         412: {
-            "content": {"application/json": {"schema": Deployment.model_json_schema()}},
+            "model": Deployment,
             "description": "The deployment moved on; the body is the version that won",
         },
-        422: problem(
+        422: documented_problem(
             "A field or an attribute breaks a rule; errors carries one entry per key"
         ),
     },
@@ -214,7 +211,9 @@ async def replace_deployment(
     ),
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
-        404: problem("No deployment carries that identifier, or it is already deleted")
+        404: documented_problem(
+            "No deployment carries that identifier, or it is already deleted"
+        )
     },
 )
 async def delete_deployment(
@@ -234,8 +233,10 @@ async def delete_deployment(
     description="Returns the deployment to the default scope with every field it had.",
     response_model=Deployment,
     responses={
-        404: problem("No deployment carries that identifier"),
-        409: problem("The deployment is not deleted, so there is nothing to restore"),
+        404: documented_problem("No deployment carries that identifier"),
+        409: documented_problem(
+            "The deployment is not deleted, so there is nothing to restore"
+        ),
     },
 )
 async def restore_deployment(
