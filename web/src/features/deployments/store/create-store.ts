@@ -29,6 +29,7 @@ const DATABASE_NAME = "deployments"
 const COLLECTION_NAME = "deployments"
 const REPLICATION_IDENTIFIER = "deployments"
 const PUSH_BATCH_SIZE = 5
+const RECONCILE_EVERY_MS = 300_000
 
 type DeploymentsCollection = Collection<Deployment, string, Record<string, never>>
 
@@ -95,22 +96,17 @@ export const createDeploymentsStore = async ({
     const rxCollection = collections[COLLECTION_NAME] as RxCollection<Deployment>
     const stream$ = new Subject<PullStreamItem>()
     acquired.stream$ = stream$
-    const recovery = { required: true }
-    const replication = replicate(rxCollection, api, pullBatchSize, tracker, stream$, recovery)
+    const pulled: Pulled = { reconciledAt: 0, checkpoint: undefined }
+    const replication = replicate(rxCollection, api, pullBatchSize, tracker, stream$, pulled)
     acquired.replication = replication
     acquired.unsubscribe = api.subscribe({
       onOpen: () => {
-        recovery.required = true
         tracker.connectionChanged("live")
         stream$.next("RESYNC")
       },
-      onResync: () => stream$.next("RESYNC"),
+      onChanged: () => stream$.next("RESYNC"),
       onError: () => {
         tracker.connectionChanged(navigator.onLine ? "reconnecting" : "offline")
-        stream$.next("RESYNC")
-      },
-      onEvent: (event) => {
-        log.debug("streamed {count} changes", { count: event.documents.length })
         stream$.next("RESYNC")
       },
     })
@@ -127,7 +123,7 @@ export const createDeploymentsStore = async ({
           await options.onUpdate?.(params)
         } catch (error) {
           for (const mutation of params.transaction.mutations)
-            tracker.settled(mutation.modified.deployment_id, mutation.modified)
+            tracker.supersededBeforeSettling(mutation.modified.deployment_id, mutation.modified)
           throw error
         }
       },
@@ -147,13 +143,15 @@ export const createDeploymentsStore = async ({
 
 type PullStreamItem = RxReplicationPullStreamItem<Deployment, Checkpoint | undefined>
 
+type Pulled = { reconciledAt: number; checkpoint: Checkpoint | undefined }
+
 const replicate = (
   rxCollection: RxCollection<Deployment>,
   api: DeploymentsApi,
   pullBatchSize: number,
   tracker: SyncTracker,
   stream$: Subject<PullStreamItem>,
-  recovery: { required: boolean },
+  pulled: Pulled,
 ): RxReplicationState<Deployment, Checkpoint | undefined> => {
   const acknowledged = new Map<string, Deployment>()
   return replicateRxCollection<Deployment, Checkpoint | undefined>({
@@ -173,20 +171,17 @@ const replicate = (
       handler: async (lastCheckpoint, batchSize) => {
         const page = await api.list({ after: lastCheckpoint ?? null, limit: batchSize })
         let purged: WithDeleted<Deployment>[] = []
-        if (recovery.required && page.items.length < batchSize) {
-          recovery.required = false
-          try {
-            purged = await purgedDocuments(rxCollection, api)
-          } catch (error) {
-            recovery.required = true
-            throw error
-          }
+        if (page.items.length < batchSize && Date.now() - pulled.reconciledAt >= RECONCILE_EVERY_MS) {
+          const reconciled = await purgedDocuments(rxCollection, api)
+          if (reconciled.examined > 0) pulled.reconciledAt = Date.now()
+          purged = reconciled.missing
         }
         log.debug("pulled {count} deployments", { count: page.items.length })
-        return {
-          documents: [...page.items.map((item) => ({ ...item, _deleted: false })), ...purged],
-          checkpoint: page.checkpoint ?? checkpointOf(page.items) ?? lastCheckpoint,
-        }
+        pulled.checkpoint = page.checkpoint ?? checkpointOf(page.items) ?? lastCheckpoint
+        const documents: WithDeleted<Deployment>[] = []
+        for (const item of page.items) documents.push({ ...item, _deleted: false })
+        documents.push(...purged)
+        return { documents, checkpoint: pulled.checkpoint }
       },
     },
   })

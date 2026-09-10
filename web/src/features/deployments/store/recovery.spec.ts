@@ -101,6 +101,20 @@ describe("replication recovery", () => {
     expect(current.collection.get(missed.deployment_id)?.attributes.name).toBe(missed.attributes.name)
   })
 
+  it("reconciles once across a burst of reconnects", async () => {
+    const api = createFakeDeploymentsApi(deployments(2))
+    const current = await open(api)
+    await vi.waitFor(() => expect(current.collection.size).toBe(2))
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      api.drop()
+      api.connect()
+    }
+    await vi.waitFor(() => expect(api.reconciliations.length).toBeGreaterThan(0))
+
+    expect(api.reconciliations.length).toBe(1)
+  })
+
   it("removes a cached active row purged while the browser was closed", async () => {
     const rows = deployments(2)
     const api = createFakeDeploymentsApi(rows)

@@ -97,11 +97,6 @@ const checkpointSchema = z.object({
   deployment_id: z.uuid(),
 })
 
-export const changeEventSchema = z.object({
-  documents: z.array(deploymentSchema),
-  checkpoint: checkpointSchema,
-})
-
 export const deploymentPageSchema = z.object({
   items: z.array(deploymentSchema),
   checkpoint: checkpointSchema.nullable(),
@@ -121,7 +116,6 @@ export type WritableDeployment = z.infer<typeof writableSchema>
 export type Deployment = z.infer<typeof deploymentSchema>
 export type Checkpoint = z.infer<typeof checkpointSchema>
 export type DeploymentPage = z.infer<typeof deploymentPageSchema>
-export type ChangeEvent = z.infer<typeof changeEventSchema>
 export type Status = Deployment["status"]
 export type DeploymentType = Deployment["type"]
 export type Environment = Deployment["environment"]

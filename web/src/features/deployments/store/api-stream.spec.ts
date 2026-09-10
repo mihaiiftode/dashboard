@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { deployments } from "@/test/deployments"
 import { createFetchDeploymentsApi } from "./api"
 
 class FakeEventSource {
@@ -35,67 +34,38 @@ afterEach(() => {
 })
 
 const listen = () => {
-  const onEvent = vi.fn<(event: unknown) => void>()
-  let recoveryNeeded = false
+  const onChanged = vi.fn<() => void>()
   const onError = vi.fn<() => void>()
   const unsubscribe = createFetchDeploymentsApi("http://api", globalThis.fetch).subscribe({
-    onEvent,
     onOpen: vi.fn<() => void>(),
-    onResync: () => {
-      recoveryNeeded = true
-    },
+    onChanged,
     onError,
   })
   const source = FakeEventSource.last
   if (!source) throw new Error("no EventSource opened")
-  return { onEvent, onError, unsubscribe, source, recoveryNeeded: () => recoveryNeeded }
+  return { onChanged, onError, unsubscribe, source }
 }
 
 describe("the change stream contract", () => {
-  it.each(["{not json", '{"documents":"nope"}'])("requests recovery for an unusable frame: %s", (frame) => {
-    const listener = listen()
-    listener.source.deliver(frame)
-    expect(listener.recoveryNeeded()).toBe(true)
-  })
+  it.each(["{not json", '{"documents":"nope"}', '{"documents":[]}'])(
+    "asks for a pull whatever the frame carries: %s",
+    (frame) => {
+      const listener = listen()
+      listener.source.deliver(frame)
+      expect(listener.onChanged).toHaveBeenCalledTimes(1)
+    },
+  )
 
-  it("requests recovery when the server signals overflow", () => {
+  it("asks for a pull when the server signals overflow", () => {
     const listener = listen()
     listener.source.listeners.get("resync")?.({ data: "{}" } as MessageEvent<string>)
-    expect(listener.recoveryNeeded()).toBe(true)
+    expect(listener.onChanged).toHaveBeenCalledTimes(1)
   })
 
   it("keeps the connection reported as live while recovering from overflow", () => {
     const listener = listen()
     listener.source.listeners.get("resync")?.({ data: "{}" } as MessageEvent<string>)
     expect(listener.onError).not.toHaveBeenCalled()
-  })
-  it("delivers a well formed change event", () => {
-    const [row] = deployments(1)
-    const { onEvent, source } = listen()
-
-    source.deliver(
-      JSON.stringify({
-        documents: [row],
-        checkpoint: { updated_at: row.updated_at, deployment_id: row.deployment_id },
-      }),
-    )
-
-    expect(onEvent).toHaveBeenCalledTimes(1)
-  })
-
-  it("ignores a frame that is not valid JSON instead of throwing", () => {
-    const { onEvent, source } = listen()
-
-    expect(() => source.deliver("{not json")).not.toThrow()
-    expect(onEvent).not.toHaveBeenCalled()
-  })
-
-  it("ignores a frame that does not match the schema", () => {
-    const { onEvent, source } = listen()
-
-    source.deliver(JSON.stringify({ documents: "nope" }))
-
-    expect(onEvent).not.toHaveBeenCalled()
   })
 
   it("closes the source when the caller unsubscribes", () => {

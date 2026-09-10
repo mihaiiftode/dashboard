@@ -43,7 +43,7 @@ export const pushRow = async (
       detail: settled.rejection ?? "Deployment no longer exists",
     })
   }
-  const superseded = !tracker.settled(attempted.deployment_id, attempted)
+  const superseded = tracker.supersededBeforeSettling(attempted.deployment_id, attempted)
   if (settled.winner === null) return { ...attempted, _deleted: true }
   return superseded ? null : { ...settled.winner, _deleted: false }
 }

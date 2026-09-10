@@ -20,7 +20,7 @@ export type SyncStatus = {
 export type SyncTracker = SyncStatus & {
   began: (deploymentId: string) => void
   queued: (deployment: Deployment) => void
-  settled: (deploymentId: string, attempted?: Deployment) => boolean
+  supersededBeforeSettling: (deploymentId: string, attempted?: Deployment) => boolean
   conflicted: (conflict: WriteConflict) => void
   rejected: (rejection: WriteRejection) => void
   connectionChanged: (connection: ConnectionState) => void
@@ -57,18 +57,18 @@ export const createSyncTracker = (): SyncTracker => {
       pending.add(deployment.deployment_id)
       publish({})
     },
-    settled: (deploymentId, attempted) => {
+    supersededBeforeSettling: (deploymentId, attempted) => {
       const latest = queued.get(deploymentId)
       if (
         latest &&
         attempted &&
         (latest.deleted_at !== attempted.deleted_at || differencesBetween(latest, attempted).length > 0)
       )
-        return false
+        return true
       queued.delete(deploymentId)
       pending.delete(deploymentId)
       publish({})
-      return true
+      return false
     },
     conflicted: (conflict) => publish({ conflict }),
     rejected: (rejection) => publish({ rejection }),

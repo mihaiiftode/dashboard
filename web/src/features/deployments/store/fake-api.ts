@@ -9,6 +9,7 @@ const STAMP_STEP_MS = 1000
 
 export type FakeDeploymentsApi = DeploymentsApi & {
   requests: ListRequest[]
+  reconciliations: string[][]
   writes: ReplaceRequest[]
   replaceAll: (rows: Deployment[]) => void
   store: (row: Deployment) => void
@@ -25,6 +26,7 @@ export type FakeDeploymentsApi = DeploymentsApi & {
 export const createFakeDeploymentsApi = (initial: Deployment[] = []): FakeDeploymentsApi => {
   let rows = [...initial]
   const requests: ListRequest[] = []
+  const reconciliations: string[][] = []
   const writes: ReplaceRequest[] = []
   const put = (row: Deployment) => {
     rows = [...rows.filter((current) => current.deployment_id !== row.deployment_id), row]
@@ -34,8 +36,12 @@ export const createFakeDeploymentsApi = (initial: Deployment[] = []): FakeDeploy
   let writeFailure: { status: number; detail: string } | null = null
   const listeners = new Set<ChangeListeners>()
   return {
-    missingIds: (ids) => Promise.resolve(ids.filter((id) => !rows.some((row) => row.deployment_id === id))),
+    missingIds: (ids) => {
+      reconciliations.push(ids)
+      return Promise.resolve(ids.filter((id) => !rows.some((row) => row.deployment_id === id)))
+    },
     requests,
+    reconciliations,
     writes,
     replaceAll: (next) => {
       rows = [...next]
@@ -63,12 +69,7 @@ export const createFakeDeploymentsApi = (initial: Deployment[] = []): FakeDeploy
             : document,
         )
       }
-      for (const listener of listeners) {
-        listener.onEvent({
-          documents,
-          checkpoint: { updated_at: last.updated_at, deployment_id: last.deployment_id },
-        })
-      }
+      for (const listener of listeners) listener.onChanged()
     },
     get subscribers() {
       return listeners.size

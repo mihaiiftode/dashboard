@@ -1,10 +1,8 @@
 import { ApiError, requestJson, requestVoid, type Fetcher } from "@/lib/api/http"
 import { z } from "zod"
 import {
-  changeEventSchema,
   deploymentPageSchema,
   deploymentSchema,
-  type ChangeEvent,
   type Checkpoint,
   type Deployment,
   type DeploymentPage,
@@ -31,9 +29,8 @@ export type ReplaceOutcome = {
 }
 
 export type ChangeListeners = {
-  onEvent: (event: ChangeEvent) => void
   onOpen: () => void
-  onResync: () => void
+  onChanged: () => void
   onError: () => void
 }
 
@@ -78,26 +75,14 @@ export const createFetchDeploymentsApi = (baseUrl: string, fetcher: Fetcher = gl
 
 const subscribeWithEventSource =
   (baseUrl: string) =>
-  ({ onEvent, onOpen, onResync, onError }: ChangeListeners) => {
+  ({ onOpen, onChanged, onError }: ChangeListeners) => {
     const source = new EventSource(eventsUrl(baseUrl))
     source.addEventListener("open", () => onOpen())
     source.addEventListener("error", () => onError())
-    source.addEventListener("resync", () => onResync())
-    source.addEventListener("message", (message: MessageEvent<string>) => {
-      const parsed = changeEventSchema.safeParse(readFrame(message.data))
-      if (parsed.success) onEvent(parsed.data)
-      else onResync()
-    })
+    source.addEventListener("resync", () => onChanged())
+    source.addEventListener("message", () => onChanged())
     return () => source.close()
   }
-
-const readFrame = (data: string): unknown => {
-  try {
-    return JSON.parse(data)
-  } catch {
-    return null
-  }
-}
 
 const eventsUrl = (baseUrl: string): string => new URL("/v1/deployments/events", baseUrl).toString()
 
