@@ -1,5 +1,5 @@
 import { createCollection, createLiveQueryCollection, localOnlyCollectionOptions } from "@tanstack/react-db"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { deletedDaysAgo, deployment, deployments } from "@/test/deployments"
 import type { Deployment } from "../store/schema"
 import { compileQuery, compileScopeCounts } from "./compile"
@@ -46,6 +46,8 @@ const scopeCountsFor = async (rows: Deployment[]) => {
   await collection.cleanup()
   return counts
 }
+
+afterEach(() => vi.useRealTimers())
 
 const rows = deployments(12)
 const firstDay = deployment(1, { created_at: "2026-09-09T12:00:00.000000Z" })
@@ -115,6 +117,17 @@ describe("compileQuery", () => {
     expect(await namesFor("created:>2026-09-10", dated)).toEqual([after.attributes.name])
   })
 
+  it("compares offset timestamps by instant across the UTC midnight boundary", async () => {
+    const before = deployment(1, { created_at: "2026-09-10T01:59:59.999999+02:00" })
+    const midnight = deployment(2, { created_at: "2026-09-09T19:00:00-05:00" })
+    const sameMidnight = deployment(3, { created_at: "2026-09-10T00:00:00Z" })
+
+    expect(await namesFor("created:2026-09-09", [before, midnight, sameMidnight])).toEqual([before.attributes.name])
+    expect((await namesFor("created:2026-09-10", [before, midnight, sameMidnight])).toSorted()).toEqual(
+      [midnight.attributes.name, sameMidnight.attributes.name].toSorted(),
+    )
+  })
+
   it("matches an exact value whatever case it was typed or stored in", async () => {
     const mixed = deployment(1, { attributes: { name: "Payments" } })
 
@@ -157,6 +170,15 @@ describe("compileQuery", () => {
 
     expect(await namesFor("is:deleted", [kept, expired])).toEqual([kept.attributes.name])
     expect(await namesFor("", [kept, expired])).toEqual([])
+  })
+
+  it("expires equivalent retention instants regardless of offset or fractional precision", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-09-10T12:00:00.000Z"))
+    const boundary = deployment(1, { deleted_at: "2026-08-11T14:00:00+02:00" })
+    const afterBoundary = deployment(2, { deleted_at: "2026-08-11T12:00:00.001000Z" })
+
+    expect(await namesFor("is:deleted", [boundary, afterBoundary])).toEqual([afterBoundary.attributes.name])
   })
 
   it("treats a negated deleted scope as the default scope", async () => {
