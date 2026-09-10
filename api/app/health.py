@@ -8,7 +8,7 @@ from pymongo.errors import PyMongoError
 from app.errors import documented_problem
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(tags=["health"])
 
 
 class HealthCheck:
@@ -30,7 +30,6 @@ def get_health_check(request: Request) -> HealthCheck:
 
 @router.get(
     "/health",
-    tags=["health"],
     summary="Report whether the API can reach its database",
     description="Answers 200 when a database ping succeeds and 503 when it does not.",
     responses={503: documented_problem("The database did not answer a ping")},
