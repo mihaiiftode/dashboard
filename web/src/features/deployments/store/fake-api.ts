@@ -82,27 +82,28 @@ export const createFakeDeploymentsApi = (initial: Deployment[] = []): FakeDeploy
       })
       return () => letGo()
     },
-    list: async (request) => {
+    list: (request) => {
       requests.push(request)
-      return page(rows, request)
+      return Promise.resolve(page(rows, request))
     },
-    remove: async (id) => {
+    remove: (id) => {
       const current = rows.find((row) => row.deployment_id === id)
-      if (!current || current.deleted_at !== null) throw new ApiError(NOT_FOUND, "Not Found")
+      if (!current || current.deleted_at !== null) return Promise.reject(new ApiError(NOT_FOUND, "Not Found"))
       put({ ...current, deleted_at: nextStamp(rows), revision: current.revision + 1, updated_at: nextStamp(rows) })
+      return Promise.resolve()
     },
-    restore: async (id) => {
+    restore: (id) => {
       const current = rows.find((row) => row.deployment_id === id)
-      if (!current) throw new ApiError(NOT_FOUND, "Not Found")
-      if (current.deleted_at === null) throw new ApiError(CONFLICT, "Conflict")
+      if (!current) return Promise.reject(new ApiError(NOT_FOUND, "Not Found"))
+      if (current.deleted_at === null) return Promise.reject(new ApiError(CONFLICT, "Conflict"))
       const restored = { ...current, deleted_at: null, revision: current.revision + 1, updated_at: nextStamp(rows) }
       put(restored)
-      return restored
+      return Promise.resolve(restored)
     },
-    get: async (id) => {
+    get: (id) => {
       const found = rows.find((row) => row.deployment_id === id)
-      if (!found) throw new ApiError(NOT_FOUND, "Not Found")
-      return found
+      if (!found) return Promise.reject(new ApiError(NOT_FOUND, "Not Found"))
+      return Promise.resolve(found)
     },
     replace: async (request) => {
       writes.push(request)

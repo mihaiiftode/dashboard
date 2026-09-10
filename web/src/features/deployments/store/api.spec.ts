@@ -5,12 +5,14 @@ import { createFetchDeploymentsApi } from "./api"
 
 const respondWith = (status: number, body: unknown) => {
   const calls: string[] = []
-  const fetcher = async (url: string | URL | Request) => {
+  const fetcher = (url: string | URL | Request) => {
     calls.push(String(url))
-    return new Response(body === null ? "" : JSON.stringify(body), {
-      status,
-      headers: { "content-type": "application/json" },
-    })
+    return Promise.resolve(
+      new Response(body === null ? "" : JSON.stringify(body), {
+        status,
+        headers: { "content-type": "application/json" },
+      }),
+    )
   }
   return { calls, fetcher: fetcher as typeof globalThis.fetch }
 }
@@ -63,12 +65,14 @@ describe("createFetchDeploymentsApi", () => {
 
 const recordingFetcher = (status: number, body: unknown) => {
   const calls: { url: string; init: RequestInit }[] = []
-  const fetcher = async (url: string | URL | Request, init: RequestInit = {}) => {
+  const fetcher = (url: string | URL | Request, init: RequestInit = {}) => {
     calls.push({ url: String(url), init })
-    return new Response(body === null ? null : JSON.stringify(body), {
-      status,
-      headers: { "content-type": "application/json" },
-    })
+    return Promise.resolve(
+      new Response(body === null ? null : JSON.stringify(body), {
+        status,
+        headers: { "content-type": "application/json" },
+      }),
+    )
   }
   return { calls, fetcher: fetcher as typeof globalThis.fetch }
 }
