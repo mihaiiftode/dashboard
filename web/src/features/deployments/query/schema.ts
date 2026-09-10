@@ -1,5 +1,5 @@
 import type { Deployment } from "../store/schema"
-import { FIXED_FIELDS, FieldKind, readFieldValue, type Field, type FieldCatalog } from "./fields"
+import { FIXED_FIELDS, RESERVED_KEYS, FieldKind, readFieldValue, type Field, type FieldCatalog } from "./fields"
 
 const ATTRIBUTE_ORDER = ["name", "description", "team", "region", "priority", "language", "framework", "oncall"]
 
@@ -14,13 +14,15 @@ export function buildSchema(rows: Deployment[]): { catalog: FieldCatalog; statis
   for (const row of rows)
     for (const key of Object.keys(row.attributes))
       if (row.attributes[key] !== undefined) counts.set(key, (counts.get(key) ?? 0) + 1)
-  const attributeKeys = [...counts.keys()].toSorted((a, b) => {
-    const leftPriority = ATTRIBUTE_ORDER.indexOf(a)
-    const rightPriority = ATTRIBUTE_ORDER.indexOf(b)
-    if (leftPriority !== -1 || rightPriority !== -1)
-      return (leftPriority === -1 ? Infinity : leftPriority) - (rightPriority === -1 ? Infinity : rightPriority)
-    return (counts.get(b) ?? 0) - (counts.get(a) ?? 0)
-  })
+  const attributeKeys = [...counts.keys()]
+    .filter((key) => !RESERVED_KEYS.has(key))
+    .toSorted((a, b) => {
+      const leftPriority = ATTRIBUTE_ORDER.indexOf(a)
+      const rightPriority = ATTRIBUTE_ORDER.indexOf(b)
+      if (leftPriority !== -1 || rightPriority !== -1)
+        return (leftPriority === -1 ? Infinity : leftPriority) - (rightPriority === -1 ? Infinity : rightPriority)
+      return (counts.get(b) ?? 0) - (counts.get(a) ?? 0)
+    })
   const attributeFields: Field[] = attributeKeys.map((key) => ({
     key,
     label: key,

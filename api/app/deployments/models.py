@@ -25,6 +25,25 @@ AttributeValue = Annotated[
 ]
 
 KEY_REASON = "must be 1 to 64 characters of a-z, 0-9, underscore or hyphen"
+RESERVED_KEYS = frozenset(
+    {
+        "id",
+        "deployment_id",
+        "status",
+        "type",
+        "env",
+        "environment",
+        "version",
+        "creator",
+        "created_by",
+        "created",
+        "created_at",
+        "deleted",
+        "deleted_at",
+        "is",
+    }
+)
+RESERVED_REASON = "is reserved by a built-in field and cannot name an attribute"
 BLANK_REASON = "must not be blank"
 LENGTH_REASON = f"must be at most {VALUE_MAX_LENGTH} characters"
 EMAIL_REASON = "must be an email address"
@@ -131,6 +150,9 @@ def extra_violations(values: Mapping[str, str]) -> list[AttributeViolation]:
     found: list[AttributeViolation] = []
     for key, value in values.items():
         if key in Attributes.model_fields:
+            continue
+        if key in RESERVED_KEYS:
+            found.append(AttributeViolation(key=key, reason=RESERVED_REASON))
             continue
         reason = KEY_REASON if not KEY_RULE.match(key) else value_reason(key, value)
         if reason is not None:

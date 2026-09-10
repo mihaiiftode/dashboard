@@ -63,6 +63,12 @@ const ALIASES: Record<string, string> = {
   deleted_at: "deleted",
 }
 
+export const RESERVED_KEYS: ReadonlySet<string> = new Set([
+  ...FIXED_FIELDS.map((field) => field.key),
+  ...Object.keys(ALIASES),
+  "is",
+])
+
 export const readFieldValue = (field: Field, row: Deployment): string | undefined =>
   (field.attribute ? row.attributes[field.key] : row[field.column]) ?? undefined
 

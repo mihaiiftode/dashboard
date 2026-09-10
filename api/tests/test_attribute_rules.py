@@ -1,6 +1,6 @@
 import pytest
 
-from app.deployments.models import Attributes, InvalidAttributes
+from app.deployments.models import RESERVED_REASON, Attributes, InvalidAttributes
 
 VALID = {"name": "payment-api", "team": "payments"}
 
@@ -64,3 +64,22 @@ def test_keeps_an_attribute_of_exactly_the_maximum_length() -> None:
     checked = Attributes.checked({**VALID, "team": "x" * 512})
 
     assert checked.to_map()["team"] == "x" * 512
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["status", "id", "env", "is", "version", "creator", "created", "deleted", "type"],
+)
+def test_refuses_an_attribute_key_reserved_by_a_built_in_field(key: str) -> None:
+    assert violations_for({**VALID, key: "custom"}) == [(key, RESERVED_REASON)]
+
+
+@pytest.mark.parametrize("key", ["environment", "created_by", "deployment_id"])
+def test_refuses_an_attribute_key_reserved_by_a_field_alias(key: str) -> None:
+    assert violations_for({**VALID, key: "custom"}) == [(key, RESERVED_REASON)]
+
+
+def test_still_accepts_a_key_that_only_resembles_a_reserved_one() -> None:
+    checked = Attributes.checked({**VALID, "status_page": "ok", "env_tier": "gold"})
+
+    assert checked.to_map() == {**VALID, "status_page": "ok", "env_tier": "gold"}

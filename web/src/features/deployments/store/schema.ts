@@ -7,9 +7,27 @@ export const ENVIRONMENTS = ["production", "staging", "development"] as const
 const ATTRIBUTE_KEY_RULE = /^[a-z0-9_-]{1,64}$/u
 const ATTRIBUTE_VALUE_MAX = 512
 
+export const RESERVED_ATTRIBUTE_KEYS: ReadonlySet<string> = new Set([
+  "id",
+  "deployment_id",
+  "status",
+  "type",
+  "env",
+  "environment",
+  "version",
+  "creator",
+  "created_by",
+  "created",
+  "created_at",
+  "deleted",
+  "deleted_at",
+  "is",
+])
+
 const attributeKey = z
   .string()
   .regex(ATTRIBUTE_KEY_RULE, "must be 1 to 64 characters of a-z, 0-9, underscore or hyphen")
+  .refine((key) => !RESERVED_ATTRIBUTE_KEYS.has(key), "is reserved by a built-in field")
 
 const attributeValue = z
   .string()
