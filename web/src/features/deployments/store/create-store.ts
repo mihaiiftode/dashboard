@@ -15,6 +15,7 @@ import {
 import { Subject, type Subscription } from "rxjs"
 import { createLogger } from "@/lib/logger"
 import { PULL_BATCH_SIZE, type DeploymentsApi } from "./api"
+import { COLLECTION_ID } from "./collection-id"
 import { migrationStrategies, rxdbDeploymentSchema } from "./rxdb-schema"
 import { deploymentSchema, type Checkpoint, type Deployment } from "./schema"
 import { createSyncTracker, type SyncStatus, type SyncTracker } from "./sync-tracker"
@@ -117,6 +118,7 @@ export const createDeploymentsStore = async ({
     const options = rxdbCollectionOptions({ rxCollection, schema: deploymentSchema })
     const collection = createCollection({
       ...options,
+      id: COLLECTION_ID,
       onUpdate: async (params) => {
         for (const mutation of params.transaction.mutations) tracker.queued(mutation.modified)
         try {

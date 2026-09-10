@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import { RETENTION_DAYS } from "@/lib/format"
 import { retentionCutoff } from "../query/compile"
 import type { Deployment } from "./schema"
@@ -8,8 +8,15 @@ import type { Deployment } from "./schema"
 const DAY_MS = 86_400_000
 const MAX_TIMEOUT_MS = 2_147_483_647
 
+const SeededCutoffContext = createContext<number | null>(null)
+
+export const RetentionCutoffProvider = ({ cutoff, children }: { cutoff: number; children: ReactNode }) => (
+  <SeededCutoffContext.Provider value={cutoff}>{children}</SeededCutoffContext.Provider>
+)
+
 export const useRetentionCutoff = (rows: readonly Deployment[]): number => {
-  const [cutoff, setCutoff] = useState(retentionCutoff)
+  const seeded = useContext(SeededCutoffContext)
+  const [cutoff, setCutoff] = useState(() => seeded ?? retentionCutoff())
 
   useEffect(() => {
     const deadline = nearestDeadline(rows, cutoff)

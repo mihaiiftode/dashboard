@@ -2,13 +2,15 @@
 
 import { useQueryState } from "nuqs"
 import { DeploymentsPageClient, groupParser, queryParser, sortParser } from "@/features/deployments/main"
+import type { DeploymentsSeed } from "@/features/deployments/main"
 
-export const DeploymentsRoute = () => {
+export const DeploymentsRoute = ({ seed }: { seed: DeploymentsSeed }) => {
   const [query, setQuery] = useQueryState("q", queryParser)
   const [group, setGroup] = useQueryState("group", groupParser)
   const [sort, setSort] = useQueryState("sort", sortParser)
   return (
     <DeploymentsPageClient
+      seed={seed}
       query={query}
       onQueryChange={setQuery}
       group={group}
