@@ -60,19 +60,21 @@ One input takes every query. Bare words match anywhere across identifier, versio
 | --- | --- |
 | `payments` | rows carrying that text anywhere |
 | `status:failed` | one facet value |
-| `status:failed,stopped` | either value |
+| `status:failed OR status:stopped` | either value |
 | `status:failed type:worker` | both conditions |
 | `-status:failed` | everything except |
 | `env:prod` | aliases resolve, so does `environment:production` |
 | `name:api-*` | glob against the whole value |
-| `created:<7d` | newer than, `created:>30d` for older |
-| `has:oncall` | rows carrying an attribute at all |
+| `created:<2026-09-10` | before that UTC calendar day; use `>` for after |
+| `created:2026-09-10` | on that UTC calendar day; `<=` and `>=` include that day |
 | `is:deleted` | the trash, with days left per row; `-is:deleted` is the default scope |
-| `group:team` | group rows, expanded, header row per value |
-| `sort:name`, `sort:-created` | order, prefix `-` for descending |
 | `team:"release team"` | quote a value with a space, comma, or quote |
 
-The popup counts what each choice would leave given the other tokens. For a string field it leads with a matches-anywhere row that Enter never takes, so pressing Enter keeps what you typed. The query lives in the URL, so a search is a link.
+Queries use [Liqe](https://github.com/gajus/liqe) syntax. Combine filters with `AND`, `OR`, `NOT`, and parentheses. Spaces between filters mean `AND`. Commas are literal characters; use `OR` for alternative values. The deployment adapter supports text, enum, wildcard, and calendar-date filters; regex and numeric-range expressions are not supported.
+
+Use `is:deleted` as a separate `AND` clause to select the trash. Sorting and grouping are controlled by table headers and the Fields panel, with separate URL parameters.
+
+The popup counts what each choice would leave given the other filters. For a string field it leads with a matches-anywhere row that Enter never takes, so pressing Enter keeps what you typed. Liqe supplies the token positions used for completion and chips. Incomplete field values can be completed; other invalid syntax is marked and ignored until corrected. The query lives in the URL, so a search is a link.
 
 ## How it works
 

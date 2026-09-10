@@ -1,13 +1,8 @@
 import { screen, waitFor, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { deletedDaysAgo, deployment, deployments } from "@/test/deployments"
-import { renderWithProviders } from "@/test/render"
+import { findTable, openDeploymentsPage } from "@/test/deployments-page"
 import { setupUser } from "@/test/user"
-import { DeploymentsPage } from "./deployments-page"
-
-const noop = () => {}
-
-const findTable = () => screen.findByRole("table", undefined, { timeout: 5000 })
 
 const pendingRows = async () =>
   (await screen.findAllByRole("status", { name: "Loading" })).map(
@@ -16,9 +11,7 @@ const pendingRows = async () =>
 
 const openBrowser = async (rows = deployments(6)) => {
   const user = setupUser()
-  const rendered = renderWithProviders(<DeploymentsPage query="" onQueryChange={noop} />, { rows })
-  const table = await findTable()
-  return { user, table, ...rendered }
+  return { user, ...(await openDeploymentsPage({ rows })) }
 }
 
 describe("editing a deployment", () => {

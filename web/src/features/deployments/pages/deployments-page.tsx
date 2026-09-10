@@ -6,15 +6,21 @@ import { FieldIndexRow } from "../components/field-index-row"
 import { FieldsPanel } from "../components/fields-panel"
 import { NoMatches } from "../components/no-matches"
 import { QueryBar } from "../components/query-bar"
+import { QueryChips } from "../components/query-chips"
 import { TableSkeleton } from "../components/table-skeleton"
 import { FieldsToggle } from "../components/view-controls"
 import { QUERY_INPUT_ID, useDeploymentsView, type QueryChange } from "../hooks/use-deployments-view"
+import type { Sorting } from "../query/sort"
 import { useSlashFocus } from "../hooks/use-slash-focus"
 import { useStoreBoundary } from "../hooks/use-store-boundary"
 
 export type DeploymentsPageProps = {
   query: string
   onQueryChange: QueryChange
+  group: string | null
+  onGroupChange: (next: string | null) => void
+  sort: Sorting
+  onSortChange: (next: Sorting) => void
 }
 
 export const DeploymentsPage = (props: DeploymentsPageProps) => {
@@ -31,8 +37,9 @@ export const DeploymentsPage = (props: DeploymentsPageProps) => {
   )
 }
 
-const DeploymentsBrowser = ({ query, onQueryChange }: DeploymentsPageProps) => {
-  const view = useDeploymentsView(query, onQueryChange)
+const DeploymentsBrowser = (props: DeploymentsPageProps) => {
+  const { query, onQueryChange } = props
+  const view = useDeploymentsView(props)
   useSlashFocus(QUERY_INPUT_ID)
   return (
     <>
@@ -42,9 +49,10 @@ const DeploymentsBrowser = ({ query, onQueryChange }: DeploymentsPageProps) => {
         suggestions={view.suggestions}
         onQueryChange={onQueryChange}
         onCaretChange={view.onCaretChange}
-        invalid={view.invalid}
-        trailing={<FieldsToggle open={view.fieldsOpen} onToggle={view.onToggleFields} />}
-      />
+      >
+        <FieldsToggle open={view.fieldsOpen} onToggle={view.onToggleFields} />
+      </QueryBar>
+      <QueryChips query={view.parsed} directives={view.directives} onQueryChange={onQueryChange} />
       <div className="flex min-h-0 flex-1">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {view.matched.length === 0 ? (
@@ -58,7 +66,7 @@ const DeploymentsBrowser = ({ query, onQueryChange }: DeploymentsPageProps) => {
               pendingIds={view.pendingIds}
               groupKey={view.group}
               sort={view.sort}
-              onSortChange={view.onSortChange}
+              onSortChange={view.onTableSortChange}
               onRangeChange={view.onRangeChange}
             />
           )}
@@ -74,7 +82,7 @@ const DeploymentsBrowser = ({ query, onQueryChange }: DeploymentsPageProps) => {
               <FieldIndexRow
                 key={field.key}
                 field={field}
-                filters={view.queryFilters}
+                query={view.resolvedQuery}
                 schema={view.schema}
                 search={view.fieldSearchTerm}
                 total={view.matched.length}

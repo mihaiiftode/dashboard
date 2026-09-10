@@ -2,24 +2,23 @@
 
 import { useMemo } from "react"
 import { useLiveQuery } from "@tanstack/react-db"
-import type { Token } from "../query/grammar"
+import type { Narrowing } from "../query/filter-set"
 import { compileScopeCounts, compileValueIndex } from "../query/compile"
-import type { Field, Schema } from "../query/schema"
+import type { Schema } from "../query/schema"
+import type { Field } from "../query/fields"
 import { valueIndexOf, type ValueIndex } from "../query/value-index"
 import { useDeploymentsCollection } from "./store-context"
 
 export type ScopeCounts = { live: number; deleted: number }
 
-export const useValueIndex = (field: Field | null, filters: readonly Token[], schema: Schema): ValueIndex => {
+export const useValueIndex = (field: Field | null, resolved: Narrowing, schema: Schema): ValueIndex => {
   const collection = useDeploymentsCollection()
   const { data } = useLiveQuery(
-    (query) => (field ? compileValueIndex(query.from({ deployment: collection }), field, filters, schema) : undefined),
-    [collection, field?.key, rawOf(filters), schema.attributeKeys.length],
+    (query) => (field ? compileValueIndex(query.from({ deployment: collection }), field, resolved, schema) : undefined),
+    [collection, field, resolved, schema],
   )
   return useMemo(() => valueIndexOf(data ?? []), [data])
 }
-
-const rawOf = (filters: readonly Token[]): string => filters.map((token) => token.raw).join(" ")
 
 export const useScopeCounts = (): ScopeCounts => {
   const collection = useDeploymentsCollection()

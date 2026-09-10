@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { deployments } from "@/test/deployments"
 import { setupUser } from "@/test/user"
+import { parseQuery } from "../query/filter-set"
 import { buildSchema } from "../query/schema"
 import { suggest } from "../query/suggest"
 import { EMPTY_VALUE_INDEX, valueIndexOf, type ValueIndex } from "../query/value-index"
@@ -25,10 +26,9 @@ const Harness = ({ initial = "", index = EMPTY_VALUE_INDEX }: HarnessProps) => {
     <QueryBar
       inputId="search"
       query={query}
-      suggestions={suggest(query, caret, schema, { index, deletedRows: 4 })}
+      suggestions={suggest(parseQuery(query, schema), caret, schema, { index, deletedRows: 4 })}
       onQueryChange={setQuery}
       onCaretChange={setCaret}
-      invalid={[]}
     />
   )
 }
@@ -111,14 +111,5 @@ describe("QueryBar", () => {
     await user.type(searchBox(), "status:")
 
     expect(searchBox()).toHaveValue("status:")
-  })
-
-  it("drops a token when its chip is dismissed", async () => {
-    const user = setupUser()
-    renderBar({ initial: "status:failed team:payments" })
-
-    await user.click(screen.getByRole("button", { name: "Remove team:payments" }))
-
-    expect(searchBox()).toHaveValue("status:failed")
   })
 })

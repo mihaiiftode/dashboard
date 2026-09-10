@@ -1,18 +1,12 @@
 import { screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import { StatusFooter } from "@/components/shell/footer-status"
 import { deployments } from "@/test/deployments"
-import { renderWithProviders } from "@/test/render"
-import { DeploymentsPage } from "./deployments-page"
-
-const noop = () => {}
-
-const findTable = () => screen.findByRole("table", undefined, { timeout: 5000 })
+import { findTable, renderDeploymentsPage } from "@/test/deployments-page"
 
 describe("live changes", () => {
   it("shows an edit another user made without a reload", async () => {
     const rows = deployments(6)
-    const { api } = renderWithProviders(<DeploymentsPage query="" onQueryChange={noop} />, { rows })
+    const { api } = renderDeploymentsPage({ rows })
     const table = await findTable()
     expect(within(table).getByText("service-005")).toBeVisible()
 
@@ -22,13 +16,7 @@ describe("live changes", () => {
   })
 
   it("reports a dropped connection in the footer", async () => {
-    const { api } = renderWithProviders(
-      <>
-        <DeploymentsPage query="" onQueryChange={noop} />
-        <StatusFooter />
-      </>,
-      { rows: deployments(3) },
-    )
+    const { api } = renderDeploymentsPage({ footer: true, rows: deployments(3) })
     await findTable()
     api.connect()
     expect(await screen.findByRole("status", { name: "Connection live" })).toBeVisible()

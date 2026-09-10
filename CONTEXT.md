@@ -50,12 +50,24 @@ Returning a deleted deployment to the list unchanged.
 _Avoid_: undelete, recover, undo
 
 **Query**:
-The text in the query bar that filters, groups, and sorts the list. Made of tokens.
+The text in the query bar that narrows the list. Made of clauses. Grouping and sorting are not part of it.
 _Avoid_: search string, filter string
 
-**Token**:
-One unit of a query: bare text, a field with a value, or a directive that sets scope, grouping, or sort.
-_Avoid_: term, clause, chip
+**Clause**:
+One unit of a query, shown in the bar as a removable pill: bare text, a field with a value, or the scope clause. A clause the schema cannot make sense of is kept and marked rather than dropped, so the user can see why it did nothing.
+_Avoid_: token, term, chip
+
+**Filter Set**:
+What a query means once read against the current Fields: the clauses it contains, the filters they narrow by, and the scope they ask for. This is what the list is built from, never the raw text.
+_Avoid_: parsed query, AST, filter string
+
+**Grouping**:
+The one Field whose values bucket the rows into labelled groups. Chosen in the Fields Panel, not written in the query.
+_Avoid_: group by, section, bucket
+
+**Sort**:
+The one Field the rows are ordered by, and its direction. Chosen from a column header, not written in the query.
+_Avoid_: order, ordering
 
 **Field**:
 Something a deployment row can show, group by, or filter on: a fixed property such as Status or Creator, or an Attribute key.

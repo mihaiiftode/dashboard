@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useLiveQuery } from "@tanstack/react-db"
 import { notify } from "@/lib/notify"
 import { compileQuery } from "../query/compile"
-import type { Resolved } from "../query/resolve"
+import type { Sorting } from "../query/sort"
+
+import type { FilterSet } from "../query/filter-set"
 import type { Schema } from "../query/schema"
 import type { WriteConflict } from "./conflict"
 import type { WriteRejection } from "./sync-tracker"
@@ -29,13 +31,13 @@ export const useAllDeployments = (): Deployment[] => {
   return data
 }
 
-export const useMatchedDeployments = (state: Resolved, schema: Schema): Deployment[] => {
+export const useMatchedDeployments = (resolved: FilterSet, sort: Sorting, schema: Schema): Deployment[] => {
   const collection = useDeploymentsCollection()
   const { data } = useLiveQuery(
-    (query) => compileQuery(query.from({ deployment: collection }), state, schema),
-    [collection, state, schema],
+    (query) => compileQuery(query.from({ deployment: collection }), resolved, sort, schema),
+    [collection, resolved, sort, schema],
   )
-  return data as Deployment[]
+  return data
 }
 
 export const useDeploymentWrites = (): Omit<DeploymentsAccess, "rows" | "pendingIds"> & {
@@ -107,8 +109,12 @@ export const useDeploymentWrites = (): Omit<DeploymentsAccess, "rows" | "pending
   )
 }
 
-const undoableNotice = (tone: "info" | "success", title: string, description: string, undo: () => void): void => {
-  const emit = tone === "info" ? notify.info : notify.success
+type UndoTone = "info" | "success"
+
+const NOTIFIER_OF: Record<UndoTone, typeof notify.info> = { info: notify.info, success: notify.success }
+
+const undoableNotice = (tone: UndoTone, title: string, description: string, undo: () => void): void => {
+  const emit = NOTIFIER_OF[tone]
   const noticeId = emit({
     title,
     description,

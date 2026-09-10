@@ -1,13 +1,14 @@
 "use client"
 
-import type { Token } from "../query/grammar"
-import type { Field, Schema } from "../query/schema"
+import type { Narrowing } from "../query/filter-set"
+import type { Schema } from "../query/schema"
+import type { Field } from "../query/fields"
 import { useValueIndex } from "../store/use-value-index"
 import { FieldRow } from "./field-row"
 
 export type FieldIndexRowProps = {
   field: Field
-  filters: readonly Token[]
+  query: Narrowing
   schema: Schema
   search: string
   total: number
@@ -18,7 +19,7 @@ export type FieldIndexRowProps = {
   onFilter: (value: string) => void
 }
 
-export const FieldIndexRow = ({ field, filters, schema, ...rest }: FieldIndexRowProps) => {
-  const index = useValueIndex(field, filters, schema)
+export const FieldIndexRow = ({ field, query, schema, ...rest }: FieldIndexRowProps) => {
+  const index = useValueIndex(field, query, schema)
   return <FieldRow field={field} index={index} {...rest} />
 }

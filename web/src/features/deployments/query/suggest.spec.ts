@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { deployment, deployments } from "@/test/deployments"
-import { indexFieldAt, suggest, type SuggestContext } from "./suggest"
+import { indexedFieldOf, suggest, type SuggestContext } from "./suggest"
 import { buildSchema } from "./schema"
 import { EMPTY_VALUE_INDEX, valueIndexOf, type ValueIndex } from "./value-index"
+import { clauseAt, parseQuery, replaceSpan } from "./filter-set"
+
+afterEach(() => vi.useRealTimers())
 
 const rows = deployments(12)
 const schema = buildSchema(rows)
@@ -15,8 +18,12 @@ const context = (index: ValueIndex = EMPTY_VALUE_INDEX, deletedRows = 0): Sugges
   deletedRows,
 })
 
+const setOf = (query: string) => parseQuery(query, schema)
+
 const at = (query: string, index?: ValueIndex, deletedRows?: number) =>
-  suggest(query, query.length, schema, context(index, deletedRows))
+  suggest(setOf(query), query.length, schema, context(index, deletedRows))
+
+const fieldAt = (query: string, caret: number) => indexedFieldOf(clauseAt(setOf(query), caret))
 
 describe("suggest", () => {
   it("offers the field keys that start with what is typed and preselects the first", () => {
@@ -27,7 +34,7 @@ describe("suggest", () => {
   })
 
   it("offers directives alongside field keys", () => {
-    expect(at("gr").items.map((item) => item.insert)).toEqual(["group:", "gr"])
+    expect(at("is").items.map((item) => item.insert)).toEqual(["is:", "is"])
   })
 
   it("puts the matches-anywhere row after the keys that match what is typed", () => {
@@ -70,35 +77,21 @@ describe("suggest", () => {
     expect(preselect).toBe(false)
   })
 
-  it("keeps the values already chosen in a comma list out of the suggestions", () => {
-    const { items } = at("status:failed,", indexOf({ active: 7, failed: 3 }))
-
-    expect(items.map((item) => item.insert)).toEqual(["status:failed,active "])
-  })
-
   it("quotes a suggested value that carries a space", () => {
     const { items } = at("team:", indexOf({ "release team": 4 }))
 
     expect(items[1].insert).toBe('team:"release team" ')
   })
 
-  it("offers the groupable fields for the group directive", () => {
-    expect(at("group:te").items.map((item) => item.insert)).toEqual(["group:team "])
+  it("offers today's UTC date for the comparators that match what is typed", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-09-10T23:00:00.000Z"))
+
+    expect(at("created:<").items.map((item) => item.insert)).toEqual(["created:<2026-09-10 ", "created:<=2026-09-10 "])
   })
 
-  it("offers a descending sort when a minus is typed", () => {
-    expect(at("sort:-crea").items.map((item) => item.insert)).toEqual(["sort:-creator ", "sort:-created "])
-  })
-
-  it("reports how many rows carry the attribute behind the presence directive", () => {
-    const { items, preselect } = at("has:te")
-
-    expect(items).toEqual([expect.objectContaining({ insert: "has:team ", count: schema.attributeCounts.get("team") })])
-    expect(preselect).toBe(true)
-  })
-
-  it("offers relative ages for a date field", () => {
-    expect(at("created:<").items.map((item) => item.insert)).toEqual(["created:<24h ", "created:<7d ", "created:<30d "])
+  it("does not interpret a colon inside quoted text as a field", () => {
+    expect(fieldAt('"team:pay"', 10)).toBeNull()
   })
 
   it("counts the deleted rows behind the deleted scope", () => {
@@ -111,40 +104,41 @@ describe("suggest", () => {
     expect(at("nonsense:").items).toEqual([])
   })
 
-  it("keeps a negation prefix in what it inserts", () => {
-    const { items } = at("-status:fai", indexOf({ failed: 3 }))
+  it("keeps the negation in the query when a suggestion replaces a negated value", () => {
+    const query = "-status:fai"
+    const { span, items } = at(query, indexOf({ failed: 3 }))
 
-    expect(items.map((item) => item.insert)).toEqual(["-status:failed "])
+    expect(replaceSpan(query, span, items[0].insert).query).toBe("-status:failed ")
   })
 
   it("suggests against the token under the caret, not the whole query", () => {
     const query = "status:failed team:pay"
 
-    const { span, items } = suggest(query, 17, schema, context(indexOf({ payments: 4 })))
+    const { span, items } = suggest(setOf(query), 17, schema, context(indexOf({ payments: 4 })))
 
-    expect(span?.raw).toBe("team:pay")
+    expect(query.slice(span?.start ?? 0, span?.end)).toBe("team:pay")
     expect(items.some((item) => item.insert.startsWith("team:"))).toBe(true)
   })
 })
 
-describe("indexFieldAt", () => {
+describe("indexedFieldOf", () => {
   it("names the field under the caret", () => {
-    expect(indexFieldAt("status:fa", 9, schema)?.key).toBe("status")
+    expect(fieldAt("status:fa", 9)?.key).toBe("status")
   })
 
   it("names nothing while a key is still being typed", () => {
-    expect(indexFieldAt("stat", 4, schema)).toBeNull()
+    expect(fieldAt("stat", 4)).toBeNull()
   })
 
   it("names nothing for a directive, a date, or an identifier", () => {
-    expect(indexFieldAt("group:te", 8, schema)).toBeNull()
-    expect(indexFieldAt("created:<7", 10, schema)).toBeNull()
-    expect(indexFieldAt("id:ab", 5, schema)).toBeNull()
+    expect(fieldAt("created:20", 10)).toBeNull()
+    expect(fieldAt("created:<7", 10)).toBeNull()
+    expect(fieldAt("id:ab", 5)).toBeNull()
   })
 
   it("names an attribute key that only one row carries", () => {
     const scoped = buildSchema([deployment(1, { attributes: { oncall: "on@example.com" } }), deployment(2)])
 
-    expect(indexFieldAt("oncall:on", 9, scoped)?.key).toBe("oncall")
+    expect(indexedFieldOf(clauseAt(parseQuery("oncall:on", scoped), 9))?.key).toBe("oncall")
   })
 })

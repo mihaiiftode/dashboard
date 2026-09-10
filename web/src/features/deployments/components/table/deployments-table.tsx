@@ -1,6 +1,6 @@
 "use client"
 
-import { memo, useEffect, useMemo, useState, type MouseEvent } from "react"
+import { memo, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react"
 import { type ExpandedState, type SortingState, useTable } from "@tanstack/react-table"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { ArrowDownIcon, ArrowUpIcon, ChevronsUpDownIcon } from "lucide-react"
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { Deployment } from "../../store/schema"
 import { cn } from "@/lib/utils"
-import type { Field } from "../../query/schema"
+import type { Field } from "../../query/fields"
 import type { DeploymentColumns, DeploymentsTableMeta } from "./columns"
 import { tableFeatures } from "./features"
 import { GroupRow } from "./group-row"
@@ -202,22 +202,30 @@ export const DeploymentsTable = memo(function DeploymentsTable({
   )
 })
 
-const SortIcon = ({ sorted }: { sorted: false | "asc" | "desc" }) => {
-  if (sorted === "asc") return <ArrowUpIcon data-icon="inline-end" />
-  if (sorted === "desc") return <ArrowDownIcon data-icon="inline-end" />
-  return (
+type SortDirection = "asc" | "desc" | "none"
+
+const directionOf = (sorted: false | "asc" | "desc"): SortDirection => (sorted === false ? "none" : sorted)
+
+const SORT_ICON: Record<SortDirection, () => ReactNode> = {
+  asc: () => <ArrowUpIcon data-icon="inline-end" />,
+  desc: () => <ArrowDownIcon data-icon="inline-end" />,
+  none: () => (
     <ChevronsUpDownIcon
       data-icon="inline-end"
       className="opacity-0 group-focus-within/head:opacity-40 group-hover/head:opacity-40"
     />
-  )
+  ),
 }
 
-const ariaSort = (sorted: false | "asc" | "desc") => {
-  if (sorted === "asc") return "ascending"
-  if (sorted === "desc") return "descending"
-  return "none"
+const ARIA_SORT: Record<SortDirection, "ascending" | "descending" | "none"> = {
+  asc: "ascending",
+  desc: "descending",
+  none: "none",
 }
+
+const SortIcon = ({ sorted }: { sorted: false | "asc" | "desc" }) => SORT_ICON[directionOf(sorted)]()
+
+const ariaSort = (sorted: false | "asc" | "desc") => ARIA_SORT[directionOf(sorted)]
 
 function forwardPaddingClick(event: MouseEvent<HTMLTableCellElement>) {
   if (event.target !== event.currentTarget) return

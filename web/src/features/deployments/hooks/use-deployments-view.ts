@@ -2,18 +2,20 @@
 
 import { useCallback, useDeferredValue, useMemo, useState } from "react"
 import { columnsFor, type RowActions } from "../components/table/columns"
-import type { Sort } from "../components/table/deployments-table"
-import { DEFAULT_SORT } from "../query/compile"
-import { resolve, showsDeleted } from "../query/resolve"
-import { addValue, parse, upsertDirective } from "../query/grammar"
-import { buildSchema, defaultVisible, groupCandidates, type Schema } from "../query/schema"
-import { indexFieldAt, suggest } from "../query/suggest"
-import { contextFilters } from "../query/value-index"
+import { clauseAt, parseQuery, withValue } from "../query/filter-set"
+import { buildSchema, type Schema } from "../query/schema"
+import { defaultVisible, groupCandidates } from "../components/table/field-presentation"
+import { indexedFieldOf, suggest } from "../query/suggest"
+import { withoutFieldFilter } from "../query/value-index"
 import { useFooterCounts } from "./use-footer-counts"
 import { useSettledValue } from "./use-settled-value"
 import { useAllDeployments, useDeploymentWrites, useMatchedDeployments } from "../store/use-deployments"
 import { useSyncStatus } from "../store/use-sync-status"
 import { useScopeCounts, useValueIndex } from "../store/use-value-index"
+import { sortParser } from "../query/url"
+import type { QueryDirective } from "../components/query-chips"
+import { DEFAULT_SORT, type Sorting } from "../query/sort"
+import type { Sort } from "../components/table/deployments-table"
 
 export const QUERY_INPUT_ID = "search"
 
@@ -22,7 +24,16 @@ const DATA_SETTLE_MS = 120
 
 export type QueryChange = (next: string | ((previous: string) => string)) => void
 
-export const useDeploymentsView = (query: string, onQueryChange: QueryChange) => {
+export type ViewInput = {
+  query: string
+  onQueryChange: QueryChange
+  group: string | null
+  onGroupChange: (next: string | null) => void
+  sort: Sorting
+  onSortChange: (next: Sorting) => void
+}
+
+export const useDeploymentsView = ({ query, onQueryChange, group, onGroupChange, sort, onSortChange }: ViewInput) => {
   const rows = useAllDeployments()
   const sync = useSyncStatus()
   const writes = useDeploymentWrites()
@@ -33,33 +44,28 @@ export const useDeploymentsView = (query: string, onQueryChange: QueryChange) =>
   const [fieldSearch, setFieldSearch] = useState("")
 
   const visible = useMemo(() => chosen ?? new Set(defaultColumns(schema)), [chosen, schema])
-  const resolved = useMemo(() => resolve(parse(query), schema), [query, schema])
-  const settledQuery = useDeferredValue(query)
+  const parsed = useMemo(() => parseQuery(query, schema), [query, schema])
   const settledCaret = useDeferredValue(caret)
   const dataQuery = useSettledValue(query, DATA_SETTLE_MS)
-  const settled = useMemo(() => resolve(parse(dataQuery), schema), [dataQuery, schema])
-  const sort = settled.sort ?? DEFAULT_SORT
-  const matched = useMatchedDeployments(settled, schema)
-  const deletedScope = showsDeleted(settled.filters)
+  const settled = useMemo(() => parseQuery(dataQuery, schema), [dataQuery, schema])
+  const matched = useMatchedDeployments(settled, sort, schema)
+  const deletedScope = settled.scope === "deleted"
 
   const listedFields = useMemo(() => groupCandidates(schema), [schema])
-  const suggesting = useMemo(
-    () => indexFieldAt(settledQuery, settledCaret, schema),
-    [settledQuery, settledCaret, schema],
-  )
+  const caretClause = useMemo(() => clauseAt(parsed, settledCaret), [parsed, settledCaret])
+  const suggesting = useMemo(() => indexedFieldOf(caretClause), [caretClause])
   const suggestFilters = useMemo(
-    () => (suggesting ? contextFilters(settled.filters, suggesting, schema) : []),
-    [settled, suggesting, schema],
+    () => (suggesting ? withoutFieldFilter(settled, suggesting) : settled),
+    [settled, suggesting],
   )
   const index = useValueIndex(suggesting, suggestFilters, schema)
   const scope = useScopeCounts()
   const suggestions = useMemo(
-    () => suggest(settledQuery, settledCaret, schema, { index, deletedRows: scope.deleted }),
-    [settledQuery, settledCaret, schema, index, scope.deleted],
+    () => suggest(parsed, settledCaret, schema, { index, deletedRows: scope.deleted }, caretClause),
+    [parsed, settledCaret, schema, index, scope.deleted, caretClause],
   )
 
   const total = deletedScope ? scope.deleted : scope.live
-  const group = settled.group
   const fields = useMemo(
     () =>
       schema.fields.filter(
@@ -82,20 +88,20 @@ export const useDeploymentsView = (query: string, onQueryChange: QueryChange) =>
     [writes],
   )
 
-  const onSortChange = useCallback(
-    (next: Sort) =>
-      onQueryChange((previous) =>
-        upsertDirective(previous, "sort", next ? `${next.desc ? "-" : ""}${next.key}` : null),
-      ),
-    [onQueryChange],
+  const directives = useMemo<QueryDirective[]>(
+    () => [
+      ...(group === null ? [] : [{ label: `group:${group}`, onRemove: () => onGroupChange(null) }]),
+      ...(sortParser.eq(sort, DEFAULT_SORT)
+        ? []
+        : [{ label: `sort:${sortParser.serialize(sort)}`, onRemove: () => onSortChange(DEFAULT_SORT) }]),
+    ],
+    [group, sort, onGroupChange, onSortChange],
   )
-  const onGroupChange = useCallback(
-    (key: string | null) => onQueryChange((previous) => upsertDirective(previous, "group", key)),
-    [onQueryChange],
-  )
+
+  const onTableSortChange = useCallback((next: Sort) => onSortChange(next ?? DEFAULT_SORT), [onSortChange])
   const onFilter = useCallback(
-    (key: string, value: string) => onQueryChange((previous) => addValue(previous, key, value)),
-    [onQueryChange],
+    (key: string, value: string) => onQueryChange(withValue(parsed, key, value)),
+    [onQueryChange, parsed],
   )
   const onClearQuery = useCallback(() => onQueryChange(""), [onQueryChange])
   const onToggleColumn = useCallback(
@@ -126,19 +132,21 @@ export const useDeploymentsView = (query: string, onQueryChange: QueryChange) =>
     fields,
     hasAttributesColumn: hiddenAttributeKeys.length > 0,
     visible,
-    invalid: resolved.invalid,
     group,
     sort,
     actions,
     fieldsOpen,
     suggestions,
-    queryFilters: settled.filters,
+    directives,
+    parsed,
+    resolvedQuery: settled,
     listedFields,
     fieldSearch,
     fieldSearchTerm: fieldSearch.trim().toLowerCase(),
     onCaretChange: setCaret,
     onFieldSearchChange,
     onSortChange,
+    onTableSortChange,
     onGroupChange,
     onFilter,
     onClearQuery,

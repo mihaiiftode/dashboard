@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/autocomplete"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import type { ValueOption } from "../../query/schema"
+import type { ValueOption } from "../table/field-presentation"
 
 type InlineEditorProps = {
   value: string

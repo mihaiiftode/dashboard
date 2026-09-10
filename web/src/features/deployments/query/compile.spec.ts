@@ -2,10 +2,10 @@ import { createCollection, createLiveQueryCollection, localOnlyCollectionOptions
 import { describe, expect, it } from "vitest"
 import { deletedDaysAgo, deployment, deployments } from "@/test/deployments"
 import type { Deployment } from "../store/schema"
-import { resolve } from "./resolve"
 import { compileQuery } from "./compile"
-import { parse } from "./grammar"
+import { parseQuery } from "./filter-set"
 import { buildSchema } from "./schema"
+import { DEFAULT_SORT, type Sorting } from "./sort"
 
 const collectionOver = (rows: Deployment[]) => {
   const collection = createCollection(
@@ -18,14 +18,19 @@ const collectionOver = (rows: Deployment[]) => {
   return collection
 }
 
-const namesFor = async (query: string, rows: Deployment[]) => {
+const namesFor = async (query: string, rows: Deployment[], sort: Sorting = DEFAULT_SORT) => {
   const schema = buildSchema(rows)
   const collection = collectionOver(rows)
   const live = createLiveQueryCollection((builder) =>
-    compileQuery(builder.from({ deployment: collection }), resolve(parse(query), schema), schema),
+    compileQuery(builder.from({ deployment: collection }), parseQuery(query, schema), sort, schema).select(
+      ({ deployment: row }) => ({ name: row.attributes.name }),
+    ),
   )
   await live.preload()
-  return [...live.values()].map((row) => (row as Deployment).attributes.name)
+  const names = [...live.values()].map((row) => row.name)
+  await live.cleanup()
+  await collection.cleanup()
+  return names
 }
 
 const rows = deployments(12)
@@ -40,11 +45,12 @@ describe("compileQuery", () => {
     expect((await namesFor("status:failed", rows)).toSorted()).toEqual(failed.toSorted())
   })
 
-  it("treats commas as alternatives", async () => {
+  it("unions the branches of a disjunction", async () => {
     const either = rows
       .filter((row) => row.status === "failed" || row.status === "stopped")
       .map((row) => row.attributes.name)
-    expect((await namesFor("status:failed,stopped", rows)).toSorted()).toEqual(either.toSorted())
+
+    expect((await namesFor("status:failed OR status:stopped", rows)).toSorted()).toEqual(either.toSorted())
   })
 
   it("resolves a facet alias", async () => {
@@ -89,18 +95,25 @@ describe("compileQuery", () => {
     expect((await namesFor("name:service-00*", rows)).toSorted()).toEqual(expected.toSorted())
   })
 
-  it("compares relative dates against the age of the field", async () => {
-    const fresh = deployment(1, { created_at: new Date().toISOString() })
-    const old = deployment(2, { created_at: new Date(Date.now() - 30 * 86400e3).toISOString() })
-    expect(await namesFor("created:<7d", [fresh, old])).toEqual([fresh.attributes.name])
-    expect(await namesFor("created:>7d", [fresh, old])).toEqual([old.attributes.name])
+  it("compares UTC calendar days with exclusive day boundaries", async () => {
+    const before = deployment(1, { created_at: "2026-09-09T23:59:59.000Z" })
+    const on = deployment(2, { created_at: "2026-09-10T12:00:00.000Z" })
+    const after = deployment(3, { created_at: "2026-09-11T00:00:00.000Z" })
+    const dated = [before, on, after]
+    expect(await namesFor("created:<2026-09-10", dated)).toEqual([before.attributes.name])
+    expect(await namesFor("created:2026-09-10", dated)).toEqual([on.attributes.name])
+    expect(await namesFor("created:>2026-09-10", dated)).toEqual([after.attributes.name])
   })
 
-  it("filters on attribute presence and absence", async () => {
-    const withKey = deployment(1, { attributes: { oncall: "on@example.com" } })
-    const withoutKey = deployment(2)
-    expect(await namesFor("has:oncall", [withKey, withoutKey])).toEqual([withKey.attributes.name])
-    expect(await namesFor("-has:oncall", [withKey, withoutKey])).toEqual([withoutKey.attributes.name])
+  it("unions two calendar days and negates the union", async () => {
+    const first = deployment(1, { created_at: "2026-09-09T12:00:00.000Z" })
+    const second = deployment(2, { created_at: "2026-09-10T12:00:00.000Z" })
+    const third = deployment(3, { created_at: "2026-09-11T12:00:00.000Z" })
+    const days = [first, second, third]
+    const either = "created:2026-09-09 OR created:2026-09-11"
+
+    expect(await namesFor(either, days)).toEqual([third.attributes.name, first.attributes.name])
+    expect(await namesFor(`NOT (${either})`, days)).toEqual([second.attributes.name])
   })
 
   it("hides deleted deployments by default and shows only them under the deleted scope", async () => {
@@ -110,10 +123,10 @@ describe("compileQuery", () => {
     expect(await namesFor("is:deleted", [live, gone])).toEqual([gone.attributes.name])
   })
 
-  it("orders by a directive in both directions", async () => {
-    const ascending = await namesFor("sort:name", rows)
+  it("orders by explicit sort state in both directions", async () => {
+    const ascending = await namesFor("", rows, { key: "name", desc: false })
     expect(ascending).toEqual(ascending.toSorted())
-    expect(await namesFor("sort:-name", rows)).toEqual(ascending.toReversed())
+    expect(await namesFor("", rows, { key: "name", desc: true })).toEqual(ascending.toReversed())
   })
 
   it("ignores an invalid token instead of narrowing on it", async () => {

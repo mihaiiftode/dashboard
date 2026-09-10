@@ -1,159 +1,119 @@
-import { coalesce, concat, count, eq, gt, ilike, inArray, isNull, not, or } from "@tanstack/react-db"
-import type { Token } from "./grammar"
-import { showsDeleted, type Resolved } from "./resolve"
+import {
+  and,
+  coalesce,
+  concat,
+  count,
+  eq,
+  gt,
+  gte,
+  ilike,
+  isNull,
+  lt,
+  not,
+  or,
+  type QueryBuilder,
+  type RefsForContext,
+} from "@tanstack/react-db"
+import { subDays } from "date-fns"
 import { RETENTION_DAYS } from "@/lib/format"
-import { resolveKey, type Field, type Schema } from "./schema"
+import type { Deployment } from "../store/schema"
+import { FilterKind, FilterOperator, type Filter } from "./filters"
+import type { Narrowing } from "./filter-set"
+import { type Schema } from "./schema"
+import { resolveKey, type Field } from "./fields"
+import type { Sorting } from "./sort"
 
-type Row = Record<string, unknown>
-type Expression = ReturnType<typeof eq>
-type Reference = Parameters<typeof isNull>[0]
-type StringReference = Parameters<typeof ilike>[0]
-type Builder = {
-  where: (callback: (row: Row) => unknown) => Builder
-  orderBy: (callback: (row: Row) => unknown, direction?: "asc" | "desc") => Builder
-  groupBy: (callback: (row: Row) => unknown) => Builder
-  select: (callback: (row: Row) => Record<string, unknown>) => Builder
-  fn: { where: (callback: (row: Row) => boolean) => Builder }
+type DeploymentContext = {
+  baseSchema: { deployment: Deployment }
+  schema: { deployment: Deployment }
+  fromSourceName: "deployment"
+  hasJoins: false
 }
+type DeploymentQuery = QueryBuilder<DeploymentContext>
+type DeploymentRefs = RefsForContext<DeploymentContext>["deployment"]
+type Expression = ReturnType<typeof isNull>
 
-const DAY_MS = 86_400_000
-const HOUR_MS = 3_600_000
-const AGE_RULE = /^(\d+)([dhw])$/u
-const GLOB = "*"
-
-export const DEFAULT_SORT = { key: "created", desc: true } as const
-
-export const compileQuery = <T extends Builder>(source: T, state: Resolved, schema: Schema): T => {
-  const filtered = compileFilters(source, state.filters, schema)
-  const sort = state.sort ?? DEFAULT_SORT
+export const compileQuery = (source: DeploymentQuery, query: Narrowing, sort: Sorting, schema: Schema) => {
+  const filtered = compileFilters(source, query, schema)
   const field = resolveKey(schema, sort.key)
-  if (!field) return filtered
-  return filtered.orderBy((row) => readOf(row, field), sort.desc ? "desc" : "asc") as T
+  return field
+    ? filtered.orderBy(({ deployment }) => fieldReference(deployment, field), sort.desc ? "desc" : "asc")
+    : filtered
 }
 
-export const compileValueIndex = <T extends Builder>(
-  source: T,
-  field: Field,
-  filters: readonly Token[],
-  schema: Schema,
-): T =>
-  compileFilters(source, filters, schema)
-    .groupBy((row) => readOf(row, field))
-    .select((row) => ({ value: readOf(row, field), rows: count(reference(row, "deployment_id")) })) as T
+export const compileValueIndex = (source: DeploymentQuery, field: Field, query: Narrowing, schema: Schema) =>
+  compileFilters(source, query, schema)
+    .groupBy(({ deployment }) => fieldReference(deployment, field))
+    .select(({ deployment }) => ({
+      value: fieldReference(deployment, field),
+      rows: count(deployment.deployment_id),
+    }))
 
-export const compileScopeCounts = <T extends Builder>(source: T): T =>
+export const compileScopeCounts = (source: DeploymentQuery) =>
   source
-    .groupBy((row) => isNull(reference(row, "deleted_at")))
-    .select((row) => ({
-      live: isNull(reference(row, "deleted_at")),
-      rows: count(reference(row, "deployment_id")),
-    })) as T
+    .groupBy(({ deployment }) => isNull(deployment.deleted_at))
+    .select(({ deployment }) => ({
+      live: isNull(deployment.deleted_at),
+      rows: count(deployment.deployment_id),
+    }))
 
-const compileFilters = <T extends Builder>(source: T, filters: readonly Token[], schema: Schema): T => {
-  const withScope = source.where((row) => scopeClause(row, filters)) as T
-  const scoped = showsDeleted(filters) ? (withScope.where(retentionClause) as T) : withScope
-  return filters.reduce<T>((builder, token) => applyToken(builder, token, schema), scoped)
-}
-
-const retentionClause = (row: Row): Expression => gt(reference(row, "deleted_at") as StringReference, retentionCutoff())
-
-const retentionCutoff = (): string => new Date(Date.now() - RETENTION_DAYS * DAY_MS).toISOString()
-
-const scopeClause = (row: Row, filters: readonly Token[]) => {
-  const clause = isNull(reference(row, "deleted_at"))
-  return showsDeleted(filters) ? not(clause) : clause
-}
-
-const applyToken = <T extends Builder>(builder: T, token: Token, schema: Schema): T => {
-  if (token.kind === "is") return builder
-  if (token.kind === "has") return builder.where((row) => negateIf(presence(row, token.key), token.negated)) as T
-  if (token.kind === "text") return builder.where((row) => haystackClause(row, schema, token.text)) as T
-  if (token.kind !== "field") return builder
-  const field = resolveKey(schema, token.key)
-  if (!field) return builder
-  if (needsFunction(field, token)) return builder.fn.where((row) => functionMatch(row, field, token)) as T
-  return builder.where((row) => negateIf(valueClause(row, field, token), token.negated)) as T
-}
-
-const needsFunction = (field: Field, token: Token): boolean =>
-  token.kind === "field" && (field.kind === "date" || token.values.some((value) => value.includes(GLOB)))
-
-const valueClause = (row: Row, field: Field, token: Token): Expression => {
-  if (token.kind !== "field") throw new Error("value clause needs a field token")
-  const target = readOf(row, field)
-  const wanted = token.values.map((value) => (field.normalize ? field.normalize(value) : value.toLowerCase()))
-  if (field.kind === "enum") {
-    return wanted.length === 1 ? eq(target, wanted[0]) : inArray(target, wanted)
-  }
-  const clauses = wanted.map((value) => ilike(target as StringReference, `%${value}%`))
-  return clauses.length === 1 ? clauses[0] : anyOf(clauses)
-}
-
-const haystackClause = (row: Row, schema: Schema, text: string): Expression =>
-  ilike(haystackExpression(row, schema), `%${text.toLowerCase()}%`)
-
-const haystackExpression = (row: Row, schema: Schema) =>
-  concat(
-    reference(row, "deployment_id"),
-    " ",
-    reference(row, "version"),
-    " ",
-    reference(row, "created_by"),
-    ...schema.attributeKeys.flatMap((key) => [" ", coalesce(attribute(row, key), "")]),
-  )
-
-const presence = (row: Row, key: string): Expression => not(isNull(coalesce(attribute(row, key), null)))
-
-const functionMatch = (row: Row, field: Field, token: Token): boolean => {
-  if (token.kind !== "field") return true
-  const value = field.read(rowOf(row))
-  const hit = field.kind === "date" ? matchesAge(value, token) : value !== undefined && matchesGlob(value, token.values)
-  return token.negated ? !hit : hit
-}
-
-const matchesAge = (value: string | undefined, token: Extract<Token, { kind: "field" }>): boolean => {
-  if (value === undefined) return false
-  const age = Date.now() - new Date(value).getTime()
-  return token.values.some((raw) => {
-    const span = ageOf(raw)
-    return span === null ? false : token.op === ">" ? age > span : age < span
+const compileFilters = (source: DeploymentQuery, query: Narrowing, schema: Schema): DeploymentQuery => {
+  let filtered = source.where(({ deployment }) => {
+    const live = isNull(deployment.deleted_at)
+    return query.scope === "deleted" ? not(live) : live
   })
+  if (query.scope === "deleted") {
+    const cutoff = subDays(Date.now(), RETENTION_DAYS).toISOString()
+    filtered = filtered.where(({ deployment }) => gt(deployment.deleted_at, cutoff))
+  }
+  for (const filter of query.filters) {
+    filtered = filtered.where(({ deployment }) => compileFilter(deployment, filter, schema))
+  }
+  return filtered
 }
 
-const matchesGlob = (value: string, patterns: string[]): boolean =>
-  patterns.some((pattern) => globOf(pattern).test(value))
-
-const ageOf = (raw: string): number | null => {
-  const match = AGE_RULE.exec(raw)
-  if (!match) return null
-  const amount = Number(match[1])
-  if (match[2] === "d") return amount * DAY_MS
-  return match[2] === "h" ? amount * HOUR_MS : amount * 7 * DAY_MS
+const compileFilter = (row: DeploymentRefs, filter: Filter, schema: Schema): Expression => {
+  switch (filter.kind) {
+    case FilterKind.And:
+      return and(compileFilter(row, filter.left, schema), compileFilter(row, filter.right, schema))
+    case FilterKind.Or:
+      return or(compileFilter(row, filter.left, schema), compileFilter(row, filter.right, schema))
+    case FilterKind.Not:
+      return not(compileFilter(row, filter.operand, schema))
+    case FilterKind.Text: {
+      const haystack = concat(
+        row.deployment_id,
+        " ",
+        row.version,
+        " ",
+        row.created_by,
+        ...schema.attributeKeys.flatMap((key) => [" ", coalesce(row.attributes[key], "")]),
+      )
+      return matchString(haystack, filter.value, filter.operator)
+    }
+    case FilterKind.Field:
+      return matchString(fieldReference(row, filter.field), filter.value, filter.operator)
+    case FilterKind.Date: {
+      const target = fieldReference(row, filter.field)
+      if (filter.from === null) return lt(target, filter.to)
+      return filter.to === null ? gte(target, filter.from) : and(gte(target, filter.from), lt(target, filter.to))
+    }
+  }
 }
 
-const globOf = (pattern: string): RegExp =>
-  new RegExp(`^${pattern.replaceAll(/[.+^${}()|[\]\\]/gu, "\\$&").replaceAll("*", ".*")}$`, "iu")
-
-const anyOf = (clauses: Expression[]): Expression =>
-  clauses.length === 2 ? or(clauses[0], clauses[1]) : or(clauses[0], clauses[1], ...clauses.slice(2))
-
-const negateIf = (clause: Expression, negated: boolean): Expression => (negated ? not(clause) : clause)
-
-const rowOf = (row: Row) => row.deployment as Parameters<Field["read"]>[0]
-
-const reference = (row: Row, key: string): Reference => (row.deployment as Row)[key] as Reference
-
-const attribute = (row: Row, key: string): Reference => ((row.deployment as Row).attributes as Row)[key] as Reference
-
-const readOf = (row: Row, field: Field): Reference =>
-  field.attribute ? attribute(row, field.key) : reference(row, columnOf(field.key))
-
-const COLUMN_OF: Record<string, string> = {
-  id: "deployment_id",
-  env: "environment",
-  creator: "created_by",
-  created: "created_at",
-  deleted: "deleted_at",
+const matchString = (target: Parameters<typeof ilike>[0], value: string, operator: FilterOperator): Expression => {
+  switch (operator) {
+    case FilterOperator.Equals:
+      return eq(target, value)
+    case FilterOperator.Contains:
+      return ilike(target, "%" + value.replaceAll(/[%_]/gu, "\\$&") + "%")
+    case FilterOperator.Glob:
+      return ilike(target, globPattern(value))
+  }
 }
 
-const columnOf = (key: string): string => COLUMN_OF[key] ?? key
+const globPattern = (value: string): string =>
+  value.replaceAll(/[%_]/gu, "\\$&").replaceAll("*", "%").replaceAll("?", "_")
+
+const fieldReference = (row: DeploymentRefs, field: Field) =>
+  field.attribute ? row.attributes[field.key] : row[field.column]

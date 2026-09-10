@@ -1,11 +1,22 @@
-import type { DeploymentType, Environment, Status } from "../../store/schema"
+import type { ReactNode } from "react"
+import { environmentSchema, statusSchema, typeSchema } from "../../store/schema"
 import { EnvironmentCell } from "./environment-cell"
 import { StatusCell } from "./status-cell"
 import { TypeCell } from "./type-cell"
 
-export const facetCell = (key: string, value: string) => {
-  if (key === "status") return <StatusCell value={value as Status} />
-  if (key === "type") return <TypeCell value={value as DeploymentType} />
-  if (key === "env") return <EnvironmentCell value={value as Environment} />
-  return null
+const FACET_CELL: Record<string, (value: string) => ReactNode> = {
+  status: (value) => {
+    const status = statusSchema.safeParse(value)
+    return status.success ? <StatusCell value={status.data} /> : null
+  },
+  type: (value) => {
+    const type = typeSchema.safeParse(value)
+    return type.success ? <TypeCell value={type.data} /> : null
+  },
+  env: (value) => {
+    const environment = environmentSchema.safeParse(value)
+    return environment.success ? <EnvironmentCell value={environment.data} /> : null
+  },
 }
+
+export const facetCell = (key: string, value: string): ReactNode => FACET_CELL[key]?.(value) ?? null

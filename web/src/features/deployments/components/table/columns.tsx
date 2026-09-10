@@ -10,7 +10,9 @@ import { InlineEditCell } from "../cells/inline-edit-cell"
 import { RowActionCell } from "../cells/row-action-cell"
 import { TextCell } from "../cells/text-cell"
 import { TimeCell } from "../cells/time-cell"
-import { isChipField, optionsFor, type Field, type Schema } from "../../query/schema"
+import { type Schema } from "../../query/schema"
+import { readFieldValue, type Field } from "../../query/fields"
+import { isChipField, optionsFor } from "./field-presentation"
 import { tableFeatures } from "./features"
 
 export type RowActions = {
@@ -42,7 +44,7 @@ export type DeploymentColumns = ReturnType<typeof columnsFor>
 
 export function columnsFor(schema: Schema, fields: Field[], hiddenAttributeKeys: string[], actions: RowActions) {
   const valueColumns = fields.map((field) =>
-    helper.accessor((deployment) => field.read(deployment) ?? "", {
+    helper.accessor((deployment) => readFieldValue(field, deployment) ?? "", {
       id: field.key,
       header: () => (field.attribute ? <AttributeHeader label={field.key} /> : field.label),
       cell: ({ row, table }) =>
@@ -90,7 +92,7 @@ function renderValue(field: Field, deployment: Deployment, schema: Schema, actio
     case "status":
     case "type":
     case "env":
-      return facetCell(field.key, field.read(deployment) ?? "")
+      return facetCell(field.key, readFieldValue(field, deployment) ?? "")
     case "version":
       return <TextCell value={deployment.version} tabular />
     case "creator":
@@ -105,7 +107,7 @@ function renderValue(field: Field, deployment: Deployment, schema: Schema, actio
       return isChipField(schema, field) ? (
         <ChipEditCell
           label={field.key}
-          value={field.read(deployment)}
+          value={readFieldValue(field, deployment)}
           options={optionsFor(schema, field.key)}
           pending={pending}
           readOnly={readOnly}
@@ -114,7 +116,7 @@ function renderValue(field: Field, deployment: Deployment, schema: Schema, actio
       ) : (
         <InlineEditCell
           label={field.key}
-          value={field.read(deployment) ?? ""}
+          value={readFieldValue(field, deployment) ?? ""}
           placeholder="—"
           pending={pending}
           readOnly={readOnly}

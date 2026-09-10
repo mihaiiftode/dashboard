@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { TableCell } from "@/components/ui/table"
 import { facetCell } from "../cells/facet-cell"
-import type { Field } from "../../query/schema"
+import type { Field } from "../../query/fields"
 
 type GroupRowProps = {
   field: Field

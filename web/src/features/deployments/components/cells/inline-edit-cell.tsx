@@ -2,7 +2,7 @@
 
 import { Spinner } from "@/components/ui/spinner"
 import { cn } from "@/lib/utils"
-import type { ValueOption } from "../../query/schema"
+import type { ValueOption } from "../table/field-presentation"
 import { InlineEditor } from "./inline-editor"
 import { CELL_TRIGGER_CLASS, useCellEditing } from "./use-cell-editing"
 

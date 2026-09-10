@@ -2,11 +2,13 @@ import { createCollection, createLiveQueryCollection, localOnlyCollectionOptions
 import { describe, expect, it } from "vitest"
 import { deletedDaysAgo, deployment, deployments } from "@/test/deployments"
 import type { Deployment } from "../store/schema"
-import { resolve } from "./resolve"
 import { compileValueIndex } from "./compile"
-import { parse } from "./grammar"
-import { buildSchema, resolveKey, type Schema } from "./schema"
-import { contextFilters, topValues, valueIndexOf, type ValueIndex } from "./value-index"
+import { parseQuery } from "./filter-set"
+import { buildSchema, type Schema } from "./schema"
+import { resolveKey } from "./fields"
+import { withoutFieldFilter, topValues, valueIndexOf, type ValueIndex } from "./value-index"
+
+const rowsFor = (index: ValueIndex, value: string) => index.values.find((entry) => entry.value === value)?.rows
 
 const collectionOver = (rows: Deployment[]) =>
   createCollection(
@@ -26,7 +28,7 @@ const fieldFor = (schema: Schema, key: string) => {
 const indexFor = async (key: string, query: string, rows: Deployment[]) => {
   const schema = buildSchema(rows)
   const field = fieldFor(schema, key)
-  const filters = contextFilters(resolve(parse(query), schema).filters, field, schema)
+  const filters = withoutFieldFilter(parseQuery(query, schema), field)
   const collection = collectionOver(rows)
   const live = createLiveQueryCollection((builder) =>
     compileValueIndex(builder.from({ deployment: collection }), field, filters, schema),
@@ -46,7 +48,7 @@ describe("valueIndexOf", () => {
       { value: "checkout", rows: 2 },
     ])
     expect(index.covered).toBe(9)
-    expect(index.byValue.get("payments")).toBe(7)
+    expect(rowsFor(index, "payments")).toBe(7)
   })
 
   it("orders values of equal count alphabetically", () => {
@@ -59,32 +61,33 @@ describe("valueIndexOf", () => {
   })
 })
 
-describe("contextFilters", () => {
+describe("withoutFieldFilter", () => {
   it("drops the tokens that target the indexed field and keeps the rest", () => {
     const schema = buildSchema(rows)
-    const filters = resolve(parse("status:failed team:payments env:prod"), schema).filters
+    const filters = parseQuery("status:failed team:payments env:prod", schema)
 
-    const kept = contextFilters(filters, fieldFor(schema, "status"), schema)
+    const kept = withoutFieldFilter(filters, fieldFor(schema, "status"))
 
-    expect(kept.map((token) => token.raw)).toEqual(["team:payments", "env:prod"])
+    expect(kept.filters).toMatchObject([{ field: { key: "team" } }, { field: { key: "env" } }])
   })
 
   it("drops a token written with an alias of the indexed field", () => {
     const schema = buildSchema(rows)
-    const filters = resolve(parse("environment:prod status:failed"), schema).filters
+    const filters = parseQuery("environment:prod status:failed", schema)
 
-    const kept = contextFilters(filters, fieldFor(schema, "env"), schema)
+    const kept = withoutFieldFilter(filters, fieldFor(schema, "env"))
 
-    expect(kept.map((token) => token.raw)).toEqual(["status:failed"])
+    expect(kept.filters).toMatchObject([{ field: { key: "status" } }])
   })
 
-  it("drops a presence token on the indexed attribute and keeps the deleted scope", () => {
+  it("keeps the deleted scope when removing a field filter", () => {
     const schema = buildSchema(rows)
-    const filters = resolve(parse("has:team is:deleted"), schema).filters
+    const filters = parseQuery("team:payments is:deleted", schema)
 
-    const kept = contextFilters(filters, fieldFor(schema, "team"), schema)
+    const kept = withoutFieldFilter(filters, fieldFor(schema, "team"))
 
-    expect(kept.map((token) => token.raw)).toEqual(["is:deleted"])
+    expect(kept.filters).toEqual([])
+    expect(kept.scope).toBe("deleted")
   })
 })
 
@@ -99,10 +102,6 @@ describe("topValues", () => {
     expect(topValues(index, "a", 10).map((entry) => entry.value)).toEqual(["payments", "platform"])
   })
 
-  it("excludes values already chosen in the token", () => {
-    expect(topValues(index, "", 10, ["payments"]).map((entry) => entry.value)).toEqual(["checkout", "platform"])
-  })
-
   it("caps the number of values returned", () => {
     expect(topValues(index, "", 2)).toHaveLength(2)
   })
@@ -112,7 +111,7 @@ describe("compileValueIndex", () => {
   it("counts the rows behind every value of a facet", async () => {
     const { index } = await indexFor("status", "", rows)
 
-    expect(index.byValue.get("failed")).toBe(rows.filter((row) => row.status === "failed").length)
+    expect(rowsFor(index, "failed")).toBe(rows.filter((row) => row.status === "failed").length)
     expect(index.covered).toBe(rows.length)
   })
 
@@ -121,7 +120,7 @@ describe("compileValueIndex", () => {
 
     const workers = rows.filter((row) => row.type === "worker")
     expect(index.covered).toBe(workers.length)
-    expect(index.byValue.get("failed")).toBe(workers.filter((row) => row.status === "failed").length)
+    expect(rowsFor(index, "failed")).toBe(workers.filter((row) => row.status === "failed").length)
   })
 
   it("reports attribute coverage without counting the rows that lack the key", async () => {
@@ -145,11 +144,11 @@ describe("compileValueIndex", () => {
 
   it("takes a new value into the index when a row arrives", async () => {
     const { index, collection, live } = await indexFor("team", "", rows)
-    expect(index.byValue.has("brand-new")).toBe(false)
+    expect(rowsFor(index, "brand-new") !== undefined).toBe(false)
 
     collection.insert(deployment(500, { attributes: { team: "brand-new" } }))
     await Promise.resolve()
 
-    expect(valueIndexOf([...live.values()]).byValue.get("brand-new")).toBe(1)
+    expect(rowsFor(valueIndexOf([...live.values()]), "brand-new")).toBe(1)
   })
 })

@@ -56,13 +56,17 @@ const attributesSchema = z
     }
   })
 
+export const statusSchema = z.enum(STATUSES)
+export const typeSchema = z.enum(TYPES)
+export const environmentSchema = z.enum(ENVIRONMENTS)
+
 export const deploymentSchema = z.object({
   deployment_id: z.uuid(),
   revision: z.int().min(1),
   version: attributeValue,
-  status: z.enum(STATUSES),
-  type: z.enum(TYPES),
-  environment: z.enum(ENVIRONMENTS),
+  status: statusSchema,
+  type: typeSchema,
+  environment: environmentSchema,
   attributes: attributesSchema,
   created_at: z.iso.datetime({ offset: true }),
   created_by: z.email(),

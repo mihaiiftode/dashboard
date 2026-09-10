@@ -4,7 +4,7 @@ import { useState } from "react"
 import { ChevronRightIcon, Columns3Icon, LayersIcon, TagIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import type { Field } from "../query/schema"
+import type { Field } from "../query/fields"
 import { topValues, type ValueIndex } from "../query/value-index"
 import { cn } from "@/lib/utils"
 
