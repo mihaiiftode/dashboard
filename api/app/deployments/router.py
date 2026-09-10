@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import (
     APIRouter,
+    Body,
     Depends,
     Header,
     HTTPException,
@@ -133,7 +134,22 @@ async def frames(feed: ChangeFeed) -> AsyncGenerator[dict[str, object]]:
     async with feed.subscribe() as changes:
         yield {"comment": "open", "retry": RECONNECT_MS}
         async for changed in changes:
-            yield {"data": ChangeEvent.for_one(changed).model_dump_json()}
+            if changed is None:
+                yield {"event": "resync", "data": "{}"}
+            else:
+                yield {"data": ChangeEvent.for_one(changed).model_dump_json()}
+
+
+@router.post(
+    "/reconcile",
+    summary="Find cached deployments that no longer exist",
+    description="Returns missing IDs from a bounded batch, retaining soft-deleted records until the TTL purge.",
+    responses={422: documented_problem("Supply at most 1000 deployment IDs")},
+)
+async def reconcile_deployments(
+    deployment_ids: Annotated[list[UUID], Body(max_length=1000)], service: ServiceDep
+) -> list[UUID]:
+    return await service.missing_ids(deployment_ids)
 
 
 def get_precondition(

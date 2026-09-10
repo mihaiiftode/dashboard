@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -6,6 +7,10 @@ from app.deployments.models import Checkpoint, Deployment
 
 class DeploymentRepository(Protocol):
     async def ensure_indexes(self) -> None: ...
+
+    async def next_updated_at(self) -> datetime: ...
+
+    async def missing_ids(self, deployment_ids: list[UUID]) -> list[UUID]: ...
 
     async def list_page(
         self, after: Checkpoint | None, limit: int

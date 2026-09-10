@@ -1,5 +1,6 @@
+import asyncio
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from app.deployments.change_feed import ChangePublisher
@@ -45,9 +46,11 @@ class DeploymentService:
     ) -> None:
         self._repository = repository
         self._changes = changes
+        self._operations = asyncio.Lock()
 
     async def list_page(self, after: Checkpoint | None, limit: int) -> DeploymentPage:
-        found = await self._repository.list_page(after=after, limit=limit + 1)
+        async with self._operations:
+            found = await self._repository.list_page(after=after, limit=limit + 1)
         items = found[:limit]
         if len(found) <= limit:
             return DeploymentPage(items=items)
@@ -65,13 +68,23 @@ class DeploymentService:
             raise DeploymentNotFound(deployment_id)
         return found
 
+    async def missing_ids(self, deployment_ids: list[UUID]) -> list[UUID]:
+        async with self._operations:
+            return await self._repository.missing_ids(deployment_ids)
+
     async def replace(
+        self, deployment_id: UUID, writable: Writable, if_revision: int | None
+    ) -> Deployment:
+        async with self._operations:
+            return await self._replace(deployment_id, writable, if_revision)
+
+    async def _replace(
         self, deployment_id: UUID, writable: Writable, if_revision: int | None
     ) -> Deployment:
         current = await self.get(deployment_id)
         if current.deleted_at is not None:
             raise DeploymentDeleted(deployment_id)
-        edited = self._stamped(
+        edited = await self._stamped(
             current,
             {
                 "version": writable.version,
@@ -81,35 +94,48 @@ class DeploymentService:
                 "attributes": Attributes.checked(writable.attributes),
             },
         )
-        written = await self._repository.replace(edited, if_revision=if_revision)
+        written = await self._repository.replace(
+            edited, if_revision=current.revision if if_revision is None else if_revision
+        )
         if written is None:
             logger.warning("stale write rejected for deployment %s", deployment_id)
             raise StaleWrite(await self.get(deployment_id))
         return await self._published(written, "replaced")
 
     async def delete(self, deployment_id: UUID) -> Deployment:
+        async with self._operations:
+            return await self._delete(deployment_id)
+
+    async def _delete(self, deployment_id: UUID) -> Deployment:
         current = await self.get(deployment_id)
         if current.deleted_at is not None:
             raise DeploymentNotFound(deployment_id)
         return await self._written(
-            self._stamped(current, {"deleted_at": datetime.now(UTC)}), "deleted"
+            await self._stamped(current, {"deleted_at": datetime.now(UTC)}), "deleted"
         )
 
     async def restore(self, deployment_id: UUID) -> Deployment:
+        async with self._operations:
+            return await self._restore(deployment_id)
+
+    async def _restore(self, deployment_id: UUID) -> Deployment:
         current = await self.get(deployment_id)
         if current.deleted_at is None:
             raise DeploymentNotDeleted(deployment_id)
+        if current.deleted_at <= datetime.now(UTC) - timedelta(days=30):
+            raise DeploymentNotFound(deployment_id)
         return await self._written(
-            self._stamped(current, {"deleted_at": None}), "restored"
+            await self._stamped(current, {"deleted_at": None}), "restored"
         )
 
-    @staticmethod
-    def _stamped(current: Deployment, update: dict[str, object]) -> Deployment:
+    async def _stamped(
+        self, current: Deployment, update: dict[str, object]
+    ) -> Deployment:
         return current.model_copy(
             update={
                 **update,
                 "revision": current.revision + 1,
-                "updated_at": datetime.now(UTC),
+                "updated_at": await self._repository.next_updated_at(),
             }
         )
 

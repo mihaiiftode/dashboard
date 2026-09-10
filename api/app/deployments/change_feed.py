@@ -20,7 +20,7 @@ class ChangeFeed:
 
     def __init__(self, backlog: int = BACKLOG) -> None:
         self._backlog = backlog
-        self._subscribers: set[asyncio.Queue[Deployment]] = set()
+        self._subscribers: set[asyncio.Queue[Deployment | None]] = set()
 
     @property
     def subscriber_count(self) -> int:
@@ -32,13 +32,16 @@ class ChangeFeed:
                 queue.put_nowait(deployment)
             except asyncio.QueueFull:
                 logger.warning(
-                    "change feed subscriber is behind, dropping %s",
+                    "change feed subscriber is behind, resynchronizing after %s",
                     deployment.deployment_id,
                 )
+                while not queue.empty():
+                    queue.get_nowait()
+                queue.put_nowait(None)
 
     @asynccontextmanager
-    async def subscribe(self) -> AsyncIterator[AsyncIterator[Deployment]]:
-        queue: asyncio.Queue[Deployment] = asyncio.Queue(maxsize=self._backlog)
+    async def subscribe(self) -> AsyncIterator[AsyncIterator[Deployment | None]]:
+        queue: asyncio.Queue[Deployment | None] = asyncio.Queue(maxsize=self._backlog)
         self._subscribers.add(queue)
         try:
             yield drain(queue)
@@ -46,6 +49,8 @@ class ChangeFeed:
             self._subscribers.discard(queue)
 
 
-async def drain(queue: asyncio.Queue[Deployment]) -> AsyncIterator[Deployment]:
+async def drain(
+    queue: asyncio.Queue[Deployment | None],
+) -> AsyncIterator[Deployment | None]:
     while True:
         yield await queue.get()

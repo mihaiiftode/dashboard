@@ -38,7 +38,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             changes = ChangeFeed()
             app.state.settings = settings
             app.state.change_feed = changes
-            app.state.health_check = HealthCheck(client)
+            app.state.health_check = HealthCheck(client, settings.database_name)
             app.state.deployment_service = DeploymentService(deployments, changes)
             yield
         finally:

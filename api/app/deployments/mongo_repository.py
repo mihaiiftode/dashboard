@@ -1,4 +1,4 @@
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -19,6 +19,28 @@ class MongoDeploymentRepository:
         self._collection = database.get_collection(
             COLLECTION_NAME, codec_options=CodecOptions(tz_aware=True, tzinfo=UTC)
         )
+        self._clock = database.get_collection(
+            "replication_clock", codec_options=CodecOptions(tz_aware=True, tzinfo=UTC)
+        )
+
+    async def next_updated_at(self) -> datetime:
+        latest = await self._collection.find_one(
+            {}, {"updated_at": 1}, sort=[("updated_at", -1)]
+        )
+        clock = await self._clock.find_one({"_id": "deployments"})
+        timestamps = [datetime.now(UTC)]
+        if latest is not None:
+            timestamps.append(latest["updated_at"])
+        if clock is not None:
+            timestamps.append(clock["updated_at"])
+        stamp = max(timestamps)
+        stamp = stamp.replace(microsecond=stamp.microsecond // 1000 * 1000) + timedelta(
+            milliseconds=1
+        )
+        await self._clock.update_one(
+            {"_id": "deployments"}, {"$set": {"updated_at": stamp}}, upsert=True
+        )
+        return stamp
 
     @classmethod
     def from_client(
@@ -50,6 +72,14 @@ class MongoDeploymentRepository:
             {"deployment_id": str(deployment_id)}, PROJECTION
         )
         return None if document is None else Deployment.model_validate(document)
+
+    async def missing_ids(self, deployment_ids: list[UUID]) -> list[UUID]:
+        cursor = self._collection.find(
+            {"deployment_id": {"$in": [str(item) for item in deployment_ids]}},
+            {"deployment_id": 1, "_id": 0},
+        )
+        present = {UUID(document["deployment_id"]) async for document in cursor}
+        return [item for item in deployment_ids if item not in present]
 
     async def replace(
         self, deployment: Deployment, if_revision: int | None

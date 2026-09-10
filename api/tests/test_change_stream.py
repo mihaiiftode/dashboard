@@ -48,7 +48,9 @@ async def test_hands_a_change_to_every_open_stream() -> None:
 
         seen = await asyncio.gather(anext(first), anext(second))
 
-    assert [row.deployment_id for row in seen] == [changed.deployment_id] * 2
+    assert [row.deployment_id for row in seen if row is not None] == [
+        changed.deployment_id
+    ] * 2
 
 
 async def test_forgets_a_stream_once_it_closes() -> None:
@@ -60,7 +62,7 @@ async def test_forgets_a_stream_once_it_closes() -> None:
     assert feed.subscriber_count == 0
 
 
-async def test_drops_a_change_a_stream_is_too_far_behind_to_take() -> None:
+async def test_overflow_tells_a_slow_stream_to_resynchronize() -> None:
     feed = ChangeFeed(backlog=1)
     first, second = deployment(uuid4(), "first"), deployment(uuid4(), "second")
 
@@ -68,9 +70,7 @@ async def test_drops_a_change_a_stream_is_too_far_behind_to_take() -> None:
         await feed.publish(first)
         await feed.publish(second)
 
-        assert (await anext(changes)).attributes.name == "first"
-        with pytest.raises(TimeoutError):
-            await asyncio.wait_for(anext(changes), timeout=0.05)
+        assert await anext(changes) is None
 
 
 async def test_frames_carry_the_document_and_the_checkpoint_to_resume_from() -> None:

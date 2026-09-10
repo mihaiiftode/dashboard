@@ -64,6 +64,26 @@ async def test_lists_every_deployment_in_checkpoint_order(
     assert body["checkpoint"] is None
 
 
+async def test_reconciles_only_missing_ids_without_discarding_soft_deleted_rows(
+    client: AsyncClient, rows: list[Deployment]
+) -> None:
+    missing = str(uuid4())
+    await client.delete(f"/v1/deployments/{rows[0].deployment_id}")
+    response = await client.post(
+        "/v1/deployments/reconcile", json=[str(rows[0].deployment_id), missing]
+    )
+
+    assert response.status_code == 200
+    assert response.json() == [missing]
+
+
+async def test_reconciliation_rejects_oversized_batches(client: AsyncClient) -> None:
+    response = await client.post(
+        "/v1/deployments/reconcile", json=[str(uuid4())] * 1001
+    )
+    assert response.status_code == 422
+
+
 async def test_returns_the_next_checkpoint_while_more_remain(
     client: AsyncClient, rows: list[Deployment]
 ) -> None:
@@ -196,7 +216,7 @@ async def test_rejects_a_timestamp_without_a_tiebreaker(client: AsyncClient) -> 
 @pytest.fixture
 async def deleted_row() -> Deployment:
     row = deployment(99, uuid4())
-    return row.model_copy(update={"deleted_at": BASE})
+    return row.model_copy(update={"deleted_at": datetime.now(UTC)})
 
 
 @pytest.fixture

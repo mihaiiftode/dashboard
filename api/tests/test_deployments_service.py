@@ -35,7 +35,7 @@ def deployment(
             "created_at": BASE.isoformat(),
             "created_by": "engineer@example.com",
             "updated_at": BASE.isoformat(),
-            "deleted_at": BASE.isoformat() if deleted else None,
+            "deleted_at": datetime.now(UTC).isoformat() if deleted else None,
         }
     )
 
@@ -65,6 +65,7 @@ def service_over(
 def repository_holding(*rows: Deployment) -> AsyncMock:
     stored = {row.deployment_id: row for row in rows}
     repository = AsyncMock(spec=DeploymentRepository)
+    repository.next_updated_at.side_effect = lambda: datetime.now(UTC)
     repository.get.side_effect = lambda deployment_id: stored.get(deployment_id)
     repository.replace.side_effect = lambda deployment, if_revision: (
         deployment if written(stored, deployment, if_revision) else None
