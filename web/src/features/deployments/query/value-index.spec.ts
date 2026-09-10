@@ -42,7 +42,11 @@ const rows = deployments(12)
 
 describe("valueIndexOf", () => {
   it("ranks values by row count and drops the group of rows without a value", () => {
-    const index = valueIndexOf([{ value: "checkout", rows: 2 }, { rows: 5 }, { value: "payments", rows: 7 }])
+    const index = valueIndexOf([
+      { value: "checkout", rows: 2 },
+      { value: undefined, rows: 5 },
+      { value: "payments", rows: 7 },
+    ])
 
     expect(index.values).toEqual([
       { value: "payments", rows: 7 },

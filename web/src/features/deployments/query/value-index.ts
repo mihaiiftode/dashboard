@@ -5,19 +5,17 @@ export type ValueIndex = {
   covered: number
 }
 
-type ValueGroup = { value?: unknown; rows?: unknown }
+export type ValueGroup = { value: string | null | undefined; rows: number }
 
 export const EMPTY_VALUE_INDEX: ValueIndex = { values: [], covered: 0 }
 
-export const valueIndexOf = (groups: Iterable<unknown>): ValueIndex => {
+export const valueIndexOf = (groups: Iterable<ValueGroup>): ValueIndex => {
   const byValue = new Map<string, number>()
   let covered = 0
-  for (const group of groups) {
-    const { value, rows } = group as ValueGroup
-    if (typeof value !== "string" || value === "") continue
-    const counted = typeof rows === "number" ? rows : 0
-    byValue.set(value, counted)
-    covered += counted
+  for (const { value, rows } of groups) {
+    if (value === null || value === undefined || value === "") continue
+    byValue.set(value, rows)
+    covered += rows
   }
   const values = [...byValue.entries()].toSorted(byRowsThenValue).map(([value, rows]) => ({ value, rows }))
   return { values, covered }
