@@ -82,7 +82,6 @@ def get_checkpoint(
         "Returns deployments ordered by updated_at then deployment_id, including deleted ones "
         "so clients can scope them, plus the checkpoint to resume from while more remain."
     ),
-    response_model=DeploymentPage,
     responses={
         422: documented_problem(
             "The limit or the checkpoint parameters are out of range"
@@ -151,7 +150,6 @@ def get_precondition(
     "/{deployment_id}",
     summary="Read one deployment",
     description="Returns the deployment and the ETag a later write can use as If-Match.",
-    response_model=Deployment,
     responses={404: documented_problem("No deployment carries that identifier")},
 )
 async def get_deployment(
@@ -172,7 +170,6 @@ async def get_deployment(
         "expected version and answers 412 with the winning deployment otherwise. Deleted "
         "deployments are read only."
     ),
-    response_model=Deployment,
     responses={
         400: documented_problem(
             "If-Match is not a version tag from an earlier response"
@@ -231,7 +228,6 @@ async def delete_deployment(
     "/{deployment_id}/restore",
     summary="Restore a deleted deployment",
     description="Returns the deployment to the default scope with every field it had.",
-    response_model=Deployment,
     responses={
         404: documented_problem("No deployment carries that identifier"),
         409: documented_problem(

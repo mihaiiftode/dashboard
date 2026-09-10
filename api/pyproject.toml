@@ -20,3 +20,6 @@ dev = [
     "testcontainers[mongodb]>=4.15.0",
     "ty>=0.0.79",
 ]
+
+[tool.ruff.lint]
+extend-select = ["FAST"]
