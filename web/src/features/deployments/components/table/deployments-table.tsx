@@ -1,17 +1,15 @@
 "use client"
 
-import { memo, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react"
+import { memo, useEffect, useMemo, useState, type MouseEvent } from "react"
 import { type ExpandedState, type SortingState, useTable } from "@tanstack/react-table"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { ArrowDownIcon, ArrowUpIcon, ChevronsUpDownIcon } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
 import type { Deployment } from "../../store/schema"
 import { cn } from "@/lib/utils"
 import type { Field } from "../../query/fields"
-import type { DeploymentColumns, DeploymentsTableMeta } from "./columns"
-import { tableFeatures } from "./features"
+import { tableFeatures, type DeploymentColumns, type DeploymentsTableMeta } from "./columns"
 import { GroupRow } from "./group-row"
+import { TableHeaderRow } from "./table-header-row"
 
 const WIDTH: Record<string, string> = {
   id: "104px",
@@ -123,37 +121,7 @@ export const DeploymentsTable = memo(function DeploymentsTable({
         aria-rowcount={tableRows.length + 1}
         style={{ minWidth: `${Math.max(1000, fields.length * 130)}px` }}
       >
-        <TableHeader className="sticky top-0 z-10 grid bg-card">
-          {table.getHeaderGroups().map((group) => (
-            <TableRow key={group.id} aria-rowindex={1} className="grid" style={{ gridTemplateColumns: grid }}>
-              {group.headers.map((header) => {
-                const sorted = header.column.getIsSorted()
-                const canSort = header.column.getCanSort()
-                return (
-                  <TableHead
-                    key={header.id}
-                    aria-sort={canSort ? ariaSort(sorted) : undefined}
-                    className="group/head flex h-9 items-center px-2 text-xs font-medium tracking-wide text-muted-foreground uppercase"
-                  >
-                    {header.isPlaceholder ? null : canSort ? (
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        className={cn("-ml-2 gap-1 text-xs tracking-wide uppercase", sorted && "text-foreground")}
-                        onClick={header.column.getToggleSortingHandler()}
-                      >
-                        <table.FlexRender header={header} />
-                        <SortIcon sorted={sorted} />
-                      </Button>
-                    ) : (
-                      <table.FlexRender header={header} />
-                    )}
-                  </TableHead>
-                )
-              })}
-            </TableRow>
-          ))}
-        </TableHeader>
+        <TableHeaderRow table={table} grid={grid} />
         <TableBody className="relative grid" style={{ height: virtualizer.getTotalSize() }}>
           {items.map((item) => {
             const row = tableRows[item.index]
@@ -202,31 +170,6 @@ export const DeploymentsTable = memo(function DeploymentsTable({
     </div>
   )
 })
-
-type SortDirection = "asc" | "desc" | "none"
-
-const directionOf = (sorted: false | "asc" | "desc"): SortDirection => (sorted === false ? "none" : sorted)
-
-const SORT_ICON: Record<SortDirection, () => ReactNode> = {
-  asc: () => <ArrowUpIcon data-icon="inline-end" />,
-  desc: () => <ArrowDownIcon data-icon="inline-end" />,
-  none: () => (
-    <ChevronsUpDownIcon
-      data-icon="inline-end"
-      className="opacity-0 group-focus-within/head:opacity-40 group-hover/head:opacity-40"
-    />
-  ),
-}
-
-const ARIA_SORT: Record<SortDirection, "ascending" | "descending" | "none"> = {
-  asc: "ascending",
-  desc: "descending",
-  none: "none",
-}
-
-const SortIcon = ({ sorted }: { sorted: false | "asc" | "desc" }) => SORT_ICON[directionOf(sorted)]()
-
-const ariaSort = (sorted: false | "asc" | "desc") => ARIA_SORT[directionOf(sorted)]
 
 function forwardPaddingClick(event: MouseEvent<HTMLTableCellElement>) {
   if (event.target !== event.currentTarget) return

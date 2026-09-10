@@ -1,16 +1,17 @@
 import { createCollection, type Collection } from "@tanstack/react-db"
 import { rxdbCollectionOptions } from "@tanstack/rxdb-db-collection"
 import {
+  RxDBMigrationSchemaPlugin,
   addRxPlugin,
   createRxDatabase,
+  getRxStorageDexie,
+  replicateRxCollection,
   type RxCollection,
   type RxDatabase,
   type RxReplicationPullStreamItem,
+  type RxReplicationState,
   type WithDeleted,
-} from "rxdb/plugins/core"
-import { RxDBMigrationSchemaPlugin } from "rxdb/plugins/migration-schema"
-import { getRxStorageDexie } from "rxdb/plugins/storage-dexie"
-import { replicateRxCollection, type RxReplicationState } from "rxdb/plugins/replication"
+} from "./rxdb"
 import { Subject, type Subscription } from "rxjs"
 import { createLogger } from "@/lib/logger"
 import { PULL_BATCH_SIZE, type DeploymentsApi } from "./api"

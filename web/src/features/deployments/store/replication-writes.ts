@@ -1,6 +1,6 @@
 import { ApiError } from "@/lib/api/http"
 import { createLogger } from "@/lib/logger"
-import type { RxReplicationWriteToMasterRow, WithDeleted } from "rxdb/plugins/core"
+import type { RxReplicationWriteToMasterRow, WithDeleted } from "./rxdb"
 import type { DeploymentsApi } from "./api"
 import { conflictBetween } from "./conflict"
 import { writableOf, type Deployment } from "./schema"

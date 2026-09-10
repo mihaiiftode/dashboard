@@ -16,6 +16,8 @@ import { readFieldValue, type Field, type FieldStatistics } from "../../query"
 import { isChipField, optionsFor } from "./field-presentation"
 import { tableFeatures } from "./features"
 
+export { tableFeatures }
+
 export type RowActions = {
   onSetAttribute: (id: string, key: string, value: string) => void
   onDelete: (id: string) => void
