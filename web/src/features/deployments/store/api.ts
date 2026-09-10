@@ -9,7 +9,7 @@ import {
   type WritableDeployment,
 } from "./schema"
 
-export const PULL_BATCH_SIZE = 100
+export const PULL_BATCH_SIZE = 1000
 export const SEED_PAGE_SIZE = 1000
 const PRECONDITION_FAILED = 412
 
