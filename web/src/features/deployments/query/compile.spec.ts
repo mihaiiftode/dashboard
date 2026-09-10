@@ -34,6 +34,9 @@ const namesFor = async (query: string, rows: Deployment[], sort: Sorting = DEFAU
 }
 
 const rows = deployments(12)
+const firstDay = deployment(1, { created_at: "2026-09-09T12:00:00.000000Z" })
+const secondDay = deployment(2, { created_at: "2026-09-10T12:00:00.000000Z" })
+const twoDays = [firstDay, secondDay]
 
 describe("compileQuery", () => {
   it("returns every live deployment for an empty query, newest first", async () => {
@@ -43,14 +46,6 @@ describe("compileQuery", () => {
   it("matches a facet exactly", async () => {
     const failed = rows.filter((row) => row.status === "failed").map((row) => row.attributes.name)
     expect((await namesFor("status:failed", rows)).toSorted()).toEqual(failed.toSorted())
-  })
-
-  it("unions the branches of a disjunction", async () => {
-    const either = rows
-      .filter((row) => row.status === "failed" || row.status === "stopped")
-      .map((row) => row.attributes.name)
-
-    expect((await namesFor("status:failed OR status:stopped", rows)).toSorted()).toEqual(either.toSorted())
   })
 
   it("resolves a facet alias", async () => {
@@ -98,22 +93,19 @@ describe("compileQuery", () => {
   it("compares UTC calendar days with exclusive day boundaries", async () => {
     const before = deployment(1, { created_at: "2026-09-09T23:59:59.000Z" })
     const on = deployment(2, { created_at: "2026-09-10T12:00:00.000Z" })
-    const after = deployment(3, { created_at: "2026-09-11T00:00:00.000Z" })
+    const after = deployment(3, { created_at: "2026-09-11T00:00:00.000000Z" })
     const dated = [before, on, after]
     expect(await namesFor("created:<2026-09-10", dated)).toEqual([before.attributes.name])
     expect(await namesFor("created:2026-09-10", dated)).toEqual([on.attributes.name])
     expect(await namesFor("created:>2026-09-10", dated)).toEqual([after.attributes.name])
   })
 
-  it("unions two calendar days and negates the union", async () => {
-    const first = deployment(1, { created_at: "2026-09-09T12:00:00.000Z" })
-    const second = deployment(2, { created_at: "2026-09-10T12:00:00.000Z" })
-    const third = deployment(3, { created_at: "2026-09-11T12:00:00.000Z" })
-    const days = [first, second, third]
-    const either = "created:2026-09-09 OR created:2026-09-11"
+  it("matches a calendar day", async () => {
+    expect(await namesFor("created:2026-09-09", twoDays)).toEqual([firstDay.attributes.name])
+  })
 
-    expect(await namesFor(either, days)).toEqual([third.attributes.name, first.attributes.name])
-    expect(await namesFor(`NOT (${either})`, days)).toEqual([second.attributes.name])
+  it("negates a calendar day", async () => {
+    expect(await namesFor("NOT created:2026-09-09", twoDays)).toEqual([secondDay.attributes.name])
   })
 
   it("hides deleted deployments by default and shows only them under the deleted scope", async () => {

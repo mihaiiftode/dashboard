@@ -21,7 +21,7 @@ const KIND_CLASS: Record<SuggestionKind, string> = {
   directive: "text-muted-foreground",
 }
 
-const PLACEHOLDER = "Search, or filter like (status:failed OR status:stopped) team:payments…"
+const PLACEHOLDER = "Search, or filter like status:failed team:payments -env:prod…"
 const ITEM_PRESS = "item-press"
 
 export type QueryInputProps = {

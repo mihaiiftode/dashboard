@@ -6,9 +6,9 @@ import {
   type ParserAst,
   type TagToken,
 } from "liqe"
-import { isCalendarDay, startOfCalendarDay, startOfNextDay } from "./dates"
+import { parseCalendarDay, startOfCalendarDay, startOfNextDay, type CalendarDay } from "./dates"
 import { resolveKey, FieldKind, type Field } from "./fields"
-import { FilterKind, FilterOperator, type Filter } from "./filters"
+import { FilterKind, FilterOperator, type DateBounds, type Filter } from "./filters"
 import type { Schema } from "./schema"
 
 type NodeType = ParserAst["type"]
@@ -27,9 +27,7 @@ export const DELETED_SCOPE = "deleted"
 const SYNTAX_ISSUE = "Incomplete or invalid query syntax"
 const UNKNOWN_ISSUE = "Unknown field, missing value, or unsupported filter"
 
-type DayBounds = { from: string; to: string | null } | { from: null; to: string }
-
-const BOUNDS_OF: Record<ComparisonOperator, (day: string) => DayBounds> = {
+const BOUNDS_OF: Record<ComparisonOperator, (day: CalendarDay) => DateBounds> = {
   ":": (day) => ({ from: startOfCalendarDay(day), to: startOfNextDay(day) }),
   ":=": (day) => ({ from: startOfCalendarDay(day), to: startOfNextDay(day) }),
   ":<": (day) => ({ from: null, to: startOfCalendarDay(day) }),
@@ -154,13 +152,8 @@ const read = (node: ParserAst, schema: Schema, negated: boolean): Reading => {
         tag: inner.tag,
       }
     }
-    case "LogicalExpression": {
-      const left = read(node.left, schema, negated)
-      const right = read(node.right, schema, negated)
-      if (!left.filter || !right.filter) return { filter: null, scope: null, issue: UNKNOWN_ISSUE, tag: null }
-      const kind = node.operator.operator === CONJUNCTION ? FilterKind.And : FilterKind.Or
-      return { filter: { kind, left: left.filter, right: right.filter }, scope: null, issue: null, tag: null }
-    }
+    case "LogicalExpression":
+      return { filter: null, scope: null, issue: UNKNOWN_ISSUE, tag: null }
     case "Tag":
       return readTag(node, schema, negated)
   }
@@ -185,8 +178,9 @@ const readTag = (tag: TagToken, schema: Schema, negated: boolean): Reading => {
   const field = resolveKey(schema, tag.field.name)
   if (!field) return { filter: null, scope: null, issue: UNKNOWN_ISSUE, tag }
   if (field.kind === FieldKind.Date) {
-    if (!isCalendarDay(value)) return { filter: null, scope: null, issue: UNKNOWN_ISSUE, tag }
-    const bounds = BOUNDS_OF[tag.operator.operator](value)
+    const day = parseCalendarDay(value)
+    if (!day) return { filter: null, scope: null, issue: UNKNOWN_ISSUE, tag }
+    const bounds = BOUNDS_OF[tag.operator.operator](day)
     return { filter: { kind: FilterKind.Date, field, ...bounds }, scope: null, issue: null, tag }
   }
   return {

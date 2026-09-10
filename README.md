@@ -60,7 +60,6 @@ One input takes every query. Bare words match anywhere across identifier, versio
 | --- | --- |
 | `payments` | rows carrying that text anywhere |
 | `status:failed` | one facet value |
-| `status:failed OR status:stopped` | either value |
 | `status:failed type:worker` | both conditions |
 | `-status:failed` | everything except |
 | `env:prod` | aliases resolve, so does `environment:production` |
@@ -70,7 +69,7 @@ One input takes every query. Bare words match anywhere across identifier, versio
 | `is:deleted` | the trash, with days left per row; `-is:deleted` is the default scope |
 | `team:"release team"` | quote a value with a space, comma, or quote |
 
-Queries use [Liqe](https://github.com/gajus/liqe) syntax. Combine filters with `AND`, `OR`, `NOT`, and parentheses. Spaces between filters mean `AND`. Commas are literal characters; use `OR` for alternative values. The deployment adapter supports text, enum, wildcard, and calendar-date filters; regex and numeric-range expressions are not supported.
+Queries use [Liqe](https://github.com/gajus/liqe) syntax. Spaces between filters mean `AND`. Prefix a filter with `-` or `NOT` to negate it. Commas are literal characters. Disjunctions and parenthesised groups are not supported: a clause written with `OR` or parentheses stays in the bar and is marked rather than applied. The deployment adapter supports text, enum, wildcard, and calendar-date filters; regex and numeric-range expressions are not supported.
 
 Use `is:deleted` as a separate `AND` clause to select the trash. Sorting and grouping are controlled by table headers and the Fields panel, with separate URL parameters.
 

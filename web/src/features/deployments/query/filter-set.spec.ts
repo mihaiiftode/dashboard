@@ -32,11 +32,12 @@ describe("parseQuery", () => {
     expect(clausesOf("payment status:failed team:payments")).toEqual(["payment", "status:failed", "team:payments"])
   })
 
-  it("keeps a disjunction together as one clause", () => {
-    expect(clausesOf("(status:failed OR status:stopped) team:payments")).toEqual([
-      "(status:failed OR status:stopped)",
-      "team:payments",
-    ])
+  it("keeps a disjunction as one clause and marks it as unsupported", () => {
+    const source = "(status:failed OR status:stopped) team:payments"
+
+    expect(clausesOf(source)).toEqual(["(status:failed OR status:stopped)", "team:payments"])
+    expect(issuesOf(source)).toEqual(["(status:failed OR status:stopped)"])
+    expect(setOf(source).filters).toHaveLength(1)
   })
 
   it("narrows by nothing when the only text is blank", () => {
@@ -69,16 +70,16 @@ describe("resolving a clause against the fields", () => {
     expect(firstFilter("created:2026-09-10")).toMatchObject({
       kind: FilterKind.Date,
       field: { key: "created" },
-      from: "2026-09-10T00:00:00.000Z",
-      to: "2026-09-11T00:00:00.000Z",
+      from: "2026-09-10T00:00:00.000000Z",
+      to: "2026-09-11T00:00:00.000000Z",
     })
   })
 
   it.each([
-    ["created:<2026-09-10", { from: null, to: "2026-09-10T00:00:00.000Z" }],
-    ["created:>2026-09-10", { from: "2026-09-11T00:00:00.000Z", to: null }],
-    ["created:>=2026-09-10", { from: "2026-09-10T00:00:00.000Z", to: null }],
-    ["created:<=2026-09-10", { from: null, to: "2026-09-11T00:00:00.000Z" }],
+    ["created:<2026-09-10", { from: null, to: "2026-09-10T00:00:00.000000Z" }],
+    ["created:>2026-09-10", { from: "2026-09-11T00:00:00.000000Z", to: null }],
+    ["created:>=2026-09-10", { from: "2026-09-10T00:00:00.000000Z", to: null }],
+    ["created:<=2026-09-10", { from: null, to: "2026-09-11T00:00:00.000000Z" }],
   ])("bounds %s open-endedly", (query, bounds) => {
     expect(firstFilter(query)).toMatchObject(bounds)
   })

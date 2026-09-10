@@ -1,21 +1,20 @@
-import { TZDate } from "@date-fns/tz"
-import { addDays, formatISO, startOfDay } from "date-fns"
-import { z } from "zod"
+import { tz, TZDate } from "@date-fns/tz"
+import { addDays, format, isValid, parse } from "date-fns"
 
-const STORED_ZONE = "UTC"
+const CALENDAR_DAY = "yyyy-MM-dd"
+const STORED_INSTANT = "yyyy-MM-dd'T'HH:mm:ss.SSS'000Z'"
+const IN_STORED_ZONE = { in: tz("UTC") }
+const UNUSED_REFERENCE = new Date(0)
 
-const calendarDay = z.iso.date()
+export type CalendarDay = TZDate
 
-export type CalendarDay = z.infer<typeof calendarDay>
+export const parseCalendarDay = (value: string): CalendarDay | null => {
+  const day = parse(value, CALENDAR_DAY, UNUSED_REFERENCE, IN_STORED_ZONE)
+  return isValid(day) && format(day, CALENDAR_DAY) === value ? day : null
+}
 
-export const isCalendarDay = (value: string): boolean => calendarDay.safeParse(value).success
+export const startOfCalendarDay = (day: CalendarDay): string => format(day, STORED_INSTANT)
 
-const startOfStoredDay = (day: CalendarDay): Date => startOfDay(new TZDate(day, STORED_ZONE))
+export const startOfNextDay = (day: CalendarDay): string => format(addDays(day, 1), STORED_INSTANT)
 
-const storedInstant = (at: Date): string => new Date(at.getTime()).toISOString()
-
-export const startOfCalendarDay = (day: CalendarDay): string => storedInstant(startOfStoredDay(day))
-
-export const startOfNextDay = (day: CalendarDay): string => storedInstant(addDays(startOfStoredDay(day), 1))
-
-export const today = (): CalendarDay => formatISO(new TZDate(Date.now(), STORED_ZONE), { representation: "date" })
+export const today = (): string => format(new Date(), CALENDAR_DAY, IN_STORED_ZONE)

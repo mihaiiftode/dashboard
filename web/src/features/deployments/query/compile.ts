@@ -10,7 +10,6 @@ import {
   isNull,
   lt,
   not,
-  or,
   type QueryBuilder,
   type RefsForContext,
 } from "@tanstack/react-db"
@@ -74,10 +73,6 @@ const compileFilters = (source: DeploymentQuery, query: Narrowing, schema: Schem
 
 const compileFilter = (row: DeploymentRefs, filter: Filter, schema: Schema): Expression => {
   switch (filter.kind) {
-    case FilterKind.And:
-      return and(compileFilter(row, filter.left, schema), compileFilter(row, filter.right, schema))
-    case FilterKind.Or:
-      return or(compileFilter(row, filter.left, schema), compileFilter(row, filter.right, schema))
     case FilterKind.Not:
       return not(compileFilter(row, filter.operand, schema))
     case FilterKind.Text: {
