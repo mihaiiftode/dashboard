@@ -39,6 +39,8 @@ afterEach(async () => {
   store = null
 })
 
+const isTombstone = (row: object): boolean => Reflect.get(row, "_deleted") === true
+
 describe("createDeploymentsStore", () => {
   it("pulls every deployment into the collection on first load", async () => {
     const rows = deployments(3)
@@ -93,7 +95,7 @@ describe("createDeploymentsStore", () => {
     const stored = [...current.collection.values()]
     expect(stored).toHaveLength(2)
     expect(stored.find((row) => row.deployment_id === gone.deployment_id)?.deleted_at).toBe(gone.deleted_at)
-    expect(stored.every((row) => !("_deleted" in row && row._deleted))).toBe(true)
+    expect(stored.every((row) => !isTombstone(row))).toBe(true)
   })
 
   it("pushes a local edit to the API with the revision it expects to replace", async () => {
