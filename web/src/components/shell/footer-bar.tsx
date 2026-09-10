@@ -37,21 +37,20 @@ export const FooterBar = ({ counts, sync }: FooterBarProps) => {
     >
       <span data-slot="footer-window">
         {labels.window}
-        <span role="status" aria-live="polite" aria-label="Matched deployments">
+        <output aria-live="polite" aria-label="Matched deployments">
           {labels.matched}
-        </span>
+        </output>
       </span>
       {labels.total ? <span data-slot="footer-total">{labels.total}</span> : null}
-      <span
+      <output
         data-slot="footer-sync"
-        role="status"
         aria-live="polite"
         aria-label={`Connection ${sync}`}
         className={cn("ml-auto flex items-center gap-2", sync === "offline" && "text-destructive")}
       >
         <SyncDot sync={sync} />
         {sync}
-      </span>
+      </output>
     </footer>
   )
 }

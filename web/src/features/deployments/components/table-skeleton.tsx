@@ -22,9 +22,9 @@ const CELLS = [
 ]
 
 export const TableSkeleton = ({ rows = 16 }: { rows?: number }) => (
-  <div className="flex flex-1 flex-col" role="status" aria-busy="true" aria-label="Loading deployments…">
+  <output className="flex flex-1 flex-col" aria-busy="true" aria-label="Loading deployments…">
     <div className="flex h-12 items-center gap-2 border-b px-4">
-      <Skeleton className="h-8 w-[26rem]" />
+      <Skeleton className="h-8 w-104" />
       <Skeleton className="h-7 w-20" />
       <Skeleton className="h-7 w-20" />
       <Skeleton className="h-7 w-28" />
@@ -41,7 +41,7 @@ export const TableSkeleton = ({ rows = 16 }: { rows?: number }) => (
         ))}
       </div>
     ))}
-  </div>
+  </output>
 )
 
 const rowKeys = (count: number) => Array.from({ length: count }, (_, index) => `skeleton-row-${index}`)
