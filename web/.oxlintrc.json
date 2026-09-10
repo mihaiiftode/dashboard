@@ -1,17 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": [
-    "typescript",
-    "react",
-    "jsx-a11y",
-    "nextjs",
-    "import",
-    "unicorn",
-    "promise",
-    "node",
-    "vitest",
-    "oxc"
-  ],
+  "plugins": ["typescript", "react", "jsx-a11y", "nextjs", "import", "unicorn", "promise", "node", "vitest", "oxc"],
   "categories": {
     "correctness": "error",
     "suspicious": "error",
@@ -23,9 +12,7 @@
     "no-underscore-dangle": [
       "error",
       {
-        "allow": [
-          "_deleted"
-        ]
+        "allow": ["_deleted"]
       }
     ],
     "typescript/no-explicit-any": "error",
@@ -37,10 +24,7 @@
     "jsx-a11y/no-noninteractive-tabindex": [
       "error",
       {
-        "roles": [
-          "tabpanel",
-          "region"
-        ]
+        "roles": ["tabpanel", "region"]
       }
     ],
     "eslint/max-lines-per-function": "off",
@@ -50,26 +34,19 @@
   },
   "overrides": [
     {
-      "files": [
-        "src/components/ui/**"
-      ],
+      "files": ["src/components/ui/**"],
       "rules": {
         "eslint/eqeqeq": "off"
       }
     },
     {
-      "files": [
-        "**/*.spec.ts",
-        "**/*.spec.tsx"
-      ],
+      "files": ["**/*.spec.ts", "**/*.spec.tsx"],
       "rules": {
         "typescript/no-non-null-assertion": "off"
       }
     },
     {
-      "files": [
-        "src/components/ui/**"
-      ],
+      "files": ["src/components/ui/**"],
       "rules": {
         "jsx-a11y/click-events-have-key-events": "off",
         "jsx-a11y/no-noninteractive-element-interactions": "off",
@@ -79,17 +56,11 @@
       }
     },
     {
-      "files": [
-        "src/test/setup.ts"
-      ],
+      "files": ["src/test/setup.ts"],
       "rules": {
         "eslint/max-classes-per-file": "off"
       }
     }
   ],
-  "ignorePatterns": [
-    "node_modules",
-    ".next",
-    "next-env.d.ts"
-  ]
+  "ignorePatterns": ["node_modules", ".next", "next-env.d.ts"]
 }
