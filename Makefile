@@ -1,4 +1,4 @@
-.PHONY: up down api web seed test test-api test-web lint
+.PHONY: up down api web seed seed-reset test test-api test-web lint
 
 up:
 	docker compose up --build -d
@@ -14,6 +14,9 @@ web:
 
 seed:
 	cd seed && uv run --with-requirements requirements.txt python seed.py $(COUNT)
+
+seed-reset:
+	cd seed && uv run --with-requirements requirements.txt python seed.py $(COUNT) --reset
 
 test: test-api test-web
 

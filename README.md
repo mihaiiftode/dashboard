@@ -11,6 +11,7 @@ Everything at once:
 ```bash
 docker compose up -d          # mongo, api on :8000, web on :3000
 make seed                     # 5,000 deployments; make seed COUNT=50000 for ten times that
+# make seed refuses a non-empty collection; make seed-reset drops it first
 open http://localhost:3000
 ```
 

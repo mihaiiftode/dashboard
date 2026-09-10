@@ -4,12 +4,12 @@ Populates MongoDB with ~5,000 realistic deployment records.
 
 Usage:
     pip install -r requirements.txt
-    python seed.py [count]
+    python seed.py [count] [--reset]
 """
 
+import argparse
 import os
 import random
-import sys
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -18,9 +18,11 @@ from pymongo import MongoClient
 
 fake = Faker()
 
-MONGO_URI = "mongodb://localhost:27017"
-DB_NAME = "deployments"
+MONGO_URI = os.environ.get("SEED_MONGO_URL", "mongodb://localhost:27017")
+DB_NAME = os.environ.get("SEED_DATABASE_NAME", "deployments")
 COLLECTION_NAME = "deployments"
+RETENTION_SECONDS = 30 * 24 * 60 * 60
+CHECKPOINT_INDEX = "updated_at_deployment_id"
 
 DEFAULT_DEPLOYMENTS = 5000
 
@@ -133,34 +135,62 @@ def generate_deployment() -> dict:
     return deployment
 
 
-def requested_count() -> int:
-    if len(sys.argv) > 1:
-        return int(sys.argv[1])
-    return int(os.environ.get("SEED_COUNT", DEFAULT_DEPLOYMENTS))
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Seed the deployments collection.")
+    parser.add_argument(
+        "count",
+        nargs="?",
+        type=int,
+        default=int(os.environ.get("SEED_COUNT", DEFAULT_DEPLOYMENTS)),
+    )
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="Drop the target collection before inserting. Destroys existing data.",
+    )
+    return parser.parse_args()
+
+
+def generate_deployments(count: int) -> list[dict]:
+    return [generate_deployment() for _ in range(count)]
+
+
+def ensure_indexes(collection) -> None:
+    """Mirrors MongoDeploymentRepository.ensure_indexes so a seed keeps the API's contract."""
+    collection.create_index("deployment_id", unique=True)
+    collection.create_index(
+        [("updated_at", 1), ("deployment_id", 1)], name=CHECKPOINT_INDEX
+    )
+    collection.create_index("deleted_at", expireAfterSeconds=RETENTION_SECONDS)
+    collection.create_index("created_at")
+    collection.create_index("status")
 
 
 def main():
-    count = requested_count()
+    arguments = parse_arguments()
+    target = f"{DB_NAME}.{COLLECTION_NAME}"
     client = MongoClient(MONGO_URI)
-    db = client[DB_NAME]
-    collection = db[COLLECTION_NAME]
+    collection = client[DB_NAME][COLLECTION_NAME]
+    existing = collection.estimated_document_count()
 
-    collection.drop()
-    print(f"Generating {count} deployments...")
+    if existing and not arguments.reset:
+        print(
+            f"Refusing to seed: {target} already holds ~{existing} documents.\n"
+            f"Re-run with --reset to drop {target} first."
+        )
+        client.close()
+        raise SystemExit(1)
 
-    deployments = [generate_deployment() for _ in range(count)]
+    if arguments.reset:
+        print(f"Dropping {target} ({existing} documents)...")
+        collection.drop()
 
-    collection.insert_many(deployments)
-    print(f"Inserted {count} deployments into {DB_NAME}.{COLLECTION_NAME}")
+    print(f"Generating {arguments.count} deployments for {target}...")
+    collection.insert_many(generate_deployments(arguments.count))
+    print(f"Inserted {arguments.count} deployments into {target}")
 
-    collection.create_index("deployment_id", unique=True)
-    collection.create_index("created_at")
-    collection.create_index("updated_at")
-    collection.create_index("status")
-    print("Created indexes on deployment_id, created_at, updated_at, status")
-
-    sample = collection.find_one()
-    print(f"\nSample record:\n{sample}")
+    ensure_indexes(collection)
+    print(f"Restored the required indexes on {target}")
 
     client.close()
 
