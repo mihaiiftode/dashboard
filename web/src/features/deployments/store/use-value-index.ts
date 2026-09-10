@@ -25,13 +25,13 @@ export const useScopeCounts = (): ScopeCounts => {
   return useMemo(() => scopeCountsOf(data), [data])
 }
 
-const scopeCountsOf = (groups: readonly unknown[] | undefined): ScopeCounts => {
+type ScopeGroup = { live: boolean; rows: number }
+
+const scopeCountsOf = (groups: readonly ScopeGroup[] | undefined): ScopeCounts => {
   const counts = { live: 0, deleted: 0 }
   for (const group of groups ?? []) {
-    const { live, rows } = group as { live?: unknown; rows?: unknown }
-    if (typeof rows !== "number") continue
-    if (live === true) counts.live += rows
-    else counts.deleted += rows
+    if (group.live) counts.live += group.rows
+    else counts.deleted += group.rows
   }
   return counts
 }

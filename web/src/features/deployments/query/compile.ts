@@ -9,6 +9,7 @@ import {
   isNull,
   lt,
   not,
+  or,
   type QueryBuilder,
   type RefsForContext,
 } from "@tanstack/react-db"
@@ -46,22 +47,23 @@ export const compileValueIndex = (source: DeploymentQuery, field: Field, query: 
     }))
 
 export const compileScopeCounts = (source: DeploymentQuery) =>
-  source
+  withinRetention(source)
     .groupBy(({ deployment }) => isNull(deployment.deleted_at))
     .select(({ deployment }) => ({
       live: isNull(deployment.deleted_at),
       rows: count(deployment.deployment_id),
     }))
 
+const withinRetention = (source: DeploymentQuery): DeploymentQuery => {
+  const cutoff = subDays(Date.now(), RETENTION_DAYS).toISOString()
+  return source.where(({ deployment }) => or(isNull(deployment.deleted_at), gt(deployment.deleted_at, cutoff)))
+}
+
 const compileFilters = (source: DeploymentQuery, query: QueryPlan, catalog: FieldCatalog): DeploymentQuery => {
-  let filtered = source.where(({ deployment }) => {
+  let filtered = withinRetention(source).where(({ deployment }) => {
     const live = isNull(deployment.deleted_at)
     return query.scope === "deleted" ? not(live) : live
   })
-  if (query.scope === "deleted") {
-    const cutoff = subDays(Date.now(), RETENTION_DAYS).toISOString()
-    filtered = filtered.where(({ deployment }) => gt(deployment.deleted_at, cutoff))
-  }
   for (const filter of query.filters) {
     filtered = filtered.where(({ deployment }) => compileFilter(deployment, filter, catalog))
   }

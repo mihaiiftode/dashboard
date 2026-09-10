@@ -2,7 +2,7 @@ import { createCollection, createLiveQueryCollection, localOnlyCollectionOptions
 import { describe, expect, it } from "vitest"
 import { deletedDaysAgo, deployment, deployments } from "@/test/deployments"
 import type { Deployment } from "../store/schema"
-import { compileQuery } from "./compile"
+import { compileQuery, compileScopeCounts } from "./compile"
 import { parseQuery } from "./parse-query"
 import { buildSchema } from "./schema"
 import { DEFAULT_SORT, type Sorting } from "./sort"
@@ -31,6 +31,20 @@ const namesFor = async (query: string, rows: Deployment[], sort: Sorting = DEFAU
   await live.cleanup()
   await collection.cleanup()
   return names
+}
+
+const scopeCountsFor = async (rows: Deployment[]) => {
+  const collection = collectionOver(rows)
+  const live = createLiveQueryCollection((builder) => compileScopeCounts(builder.from({ deployment: collection })))
+  await live.preload()
+  const counts = { live: 0, deleted: 0 }
+  for (const group of live.values()) {
+    if (group.live) counts.live += group.rows
+    else counts.deleted += group.rows
+  }
+  await live.cleanup()
+  await collection.cleanup()
+  return counts
 }
 
 const rows = deployments(12)
@@ -150,5 +164,15 @@ describe("compileQuery", () => {
     const gone = deployment(2, { deleted_at: deletedDaysAgo() })
 
     expect(await namesFor("-is:deleted", [live, gone])).toEqual([live.attributes.name])
+  })
+})
+
+describe("compileScopeCounts", () => {
+  it("counts only the deleted rows the deleted scope will list", async () => {
+    const alive = deployment(1)
+    const kept = deployment(2, { deleted_at: deletedDaysAgo(5) })
+    const expired = deployment(3, { deleted_at: deletedDaysAgo(31) })
+
+    expect(await scopeCountsFor([alive, kept, expired])).toEqual({ live: 1, deleted: 1 })
   })
 })
