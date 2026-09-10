@@ -1,11 +1,4 @@
-import {
-  isSafeUnquotedExpression,
-  parse as parseLiqe,
-  type BooleanOperatorToken,
-  type ComparisonOperatorToken,
-  type ParserAst,
-  type TagToken,
-} from "liqe"
+import { isSafeUnquotedExpression, parse as parseLiqe, type ParserAst, type TagToken } from "liqe"
 import { parseCalendarDay, startOfCalendarDay, startOfNextDay, type CalendarDay } from "./dates"
 import { resolveKey, FieldKind, type Field, type FieldCatalog } from "./fields"
 import {
@@ -17,22 +10,17 @@ import {
   type DeploymentScope,
 } from "./filters"
 
-type NodeType = ParserAst["type"]
-type ComparisonOperator = ComparisonOperatorToken["operator"]
+type ComparisonOperator = TagToken["operator"]["operator"]
+type Literal = { value: string; quoted: boolean }
+type Outcome = { filter: Filter } | { scope: DeploymentScope } | { issue: string } | null
 
-const CONJUNCTION = "AND" satisfies BooleanOperatorToken["operator"]
-const LOGICAL = "LogicalExpression" satisfies NodeType
-const EMPTY = "EmptyExpression" satisfies NodeType
 const RESERVED = new Set(["AND", "OR", "NOT"])
-const GLOB = /[*?]/u
-const SCOPE_KEY = "is"
+const INVALID = { issue: "Unknown field, missing value, or unsupported filter" }
+const SYNTAX_ISSUE = "Incomplete or invalid query syntax"
 
 export const DELETED_SCOPE = "deleted"
 
-const SYNTAX_ISSUE = "Incomplete or invalid query syntax"
-const UNKNOWN_ISSUE = "Unknown field, missing value, or unsupported filter"
-
-const BOUNDS_OF: Record<ComparisonOperator, (day: CalendarDay) => DateBounds> = {
+const DATE_BOUNDS: Record<ComparisonOperator, (day: CalendarDay) => DateBounds> = {
   ":": (day) => ({ from: startOfCalendarDay(day), to: startOfNextDay(day) }),
   ":=": (day) => ({ from: startOfCalendarDay(day), to: startOfNextDay(day) }),
   ":<": (day) => ({ from: null, to: startOfCalendarDay(day) }),
@@ -74,124 +62,97 @@ export function parseQuery(source: string, catalog: FieldCatalog): QueryDocument
       diagnostics: [{ span: null, message: SYNTAX_ISSUE }],
     }
   }
-  const readings = conjuncts(ast).map((node) => ({ node, reading: read(node, catalog, false) }))
-  return {
-    source,
-    clauses: readings.map(({ node, reading }) => clauseOf(node, source, catalog, reading)),
-    plan: {
-      filters: readings.flatMap(({ reading }) => (reading.filter ? [reading.filter] : [])),
-      scope: readings.some(({ reading }) => reading.scope === DELETED_SCOPE) ? "deleted" : "live",
-    },
-    diagnostics: readings.flatMap(({ node, reading }) =>
-      reading.issue ? [{ span: node.location, message: reading.issue }] : [],
-    ),
+  const clauses: Clause[] = []
+  const filters: Filter[] = []
+  const diagnostics: QueryDiagnostic[] = []
+  let scope: DeploymentScope = "live"
+
+  for (const node of splitClauses(ast)) {
+    const { clause, outcome } = parseClause(node, source, catalog)
+    clauses.push(clause)
+    if (outcome === null) continue
+    if ("filter" in outcome) filters.push(outcome.filter)
+    else if ("scope" in outcome) {
+      if (outcome.scope === DELETED_SCOPE) scope = DELETED_SCOPE
+    } else diagnostics.push({ span: clause.span, message: outcome.issue })
   }
+  return { source, clauses, plan: { filters, scope }, diagnostics }
 }
 
 export const quoteValue = (value: string): string =>
   isSafeUnquotedExpression(value) && !RESERVED.has(value) ? value : JSON.stringify(value)
 
-const conjuncts = (node: ParserAst): ParserAst[] => {
-  if (node.type === EMPTY) return []
-  if (node.type === LOGICAL && node.operator.operator === CONJUNCTION) {
-    return [...conjuncts(node.left), ...conjuncts(node.right)]
+const splitClauses = (node: ParserAst): ParserAst[] => {
+  if (node.type === "EmptyExpression") return []
+  if (node.type === "LogicalExpression" && node.operator.operator === "AND") {
+    return [...splitClauses(node.left), ...splitClauses(node.right)]
   }
   return [node]
 }
 
-type Reading = {
-  filter: Filter | null
-  scope: DeploymentScope | null
-  issue: string | null
-  tag: TagToken | null
+const unwrapClause = (node: ParserAst) => {
+  let expression = node
+  let negations = 0
+  while (expression.type === "ParenthesizedExpression" || expression.type === "UnaryOperator") {
+    if (expression.type === "UnaryOperator") {
+      negations++
+      expression = expression.operand
+    } else expression = expression.expression
+  }
+  return { expression, negations }
 }
 
-const clauseOf = (node: ParserAst, source: string, catalog: FieldCatalog, reading: Reading): Clause => {
-  const tag = reading.tag
-  const span = node.location
-  return {
-    span,
-    prefix: source.slice(span.start, tag?.location.start ?? span.start),
-    text: source.slice(span.start, span.end),
-    key: tag === null ? null : keyOf(tag),
-    field: tag === null ? null : fieldOf(tag, catalog),
-    partial: tag === null ? "" : (literalOf(tag)?.value ?? ""),
-    comparator: comparatorOf(tag),
+const parseClause = (node: ParserAst, source: string, catalog: FieldCatalog): { clause: Clause; outcome: Outcome } => {
+  const { expression, negations } = unwrapClause(node)
+  const tag = expression.type === "Tag" ? expression : null
+  const comparison = tag?.operator?.operator ?? ":"
+  const key = tag?.field.type === "Field" ? tag.field.name.toLowerCase() : null
+  const literal = tag ? literalOf(tag) : null
+  const clause: Clause = {
+    span: node.location,
+    prefix: source.slice(node.location.start, tag?.location.start ?? node.location.start),
+    text: source.slice(node.location.start, node.location.end),
+    key,
+    field: key === null || key === "is" ? null : (resolveKey(catalog, key) ?? null),
+    partial: literal?.value ?? "",
+    comparator: comparison.slice(1),
   }
+  let outcome: Outcome = INVALID
+  if (tag) outcome = resolveClause(clause, literal, comparison)
+  else if (expression.type === "EmptyExpression") outcome = null
+
+  for (let i = 0; i < negations; i++) {
+    if (outcome && "filter" in outcome) outcome = { filter: { kind: FilterKind.Not, operand: outcome.filter } }
+    else if (outcome && "scope" in outcome) outcome = { scope: outcome.scope === "deleted" ? "live" : "deleted" }
+  }
+  return { clause, outcome }
 }
 
-const read = (node: ParserAst, catalog: FieldCatalog, negated: boolean): Reading => {
-  switch (node.type) {
-    case "EmptyExpression":
-      return { filter: null, scope: null, issue: null, tag: null }
-    case "ParenthesizedExpression":
-      return read(node.expression, catalog, negated)
-    case "UnaryOperator": {
-      const inner = read(node.operand, catalog, !negated)
-      return {
-        filter: inner.filter ? { kind: FilterKind.Not, operand: inner.filter } : null,
-        scope: inner.scope,
-        issue: inner.issue,
-        tag: inner.tag,
-      }
-    }
-    case "LogicalExpression":
-      return { filter: null, scope: null, issue: UNKNOWN_ISSUE, tag: null }
-    case "Tag":
-      return readTag(node, catalog, negated)
-  }
-}
+const resolveClause = (clause: Clause, literal: Literal | null, comparison: ComparisonOperator): Outcome => {
+  if (!literal || literal.value.trim() === "") return clause.key === null ? null : INVALID
+  const { value, quoted } = literal
+  if (clause.key === "is") return value.toLowerCase() === DELETED_SCOPE ? { scope: DELETED_SCOPE } : INVALID
 
-const readTag = (tag: TagToken, catalog: FieldCatalog, negated: boolean): Reading => {
-  const literal = literalOf(tag)
-  if (literal === null || literal.value.trim() === "") {
-    const named = tag.field.type === "Field"
-    return { filter: null, scope: null, issue: named ? UNKNOWN_ISSUE : null, tag }
-  }
-  const { value } = literal
-  if (namesScope(tag)) {
-    const scope = value.toLowerCase() === DELETED_SCOPE ? (negated ? "live" : "deleted") : null
-    return { filter: null, scope, issue: scope ? null : UNKNOWN_ISSUE, tag }
-  }
-  const glob = !literal.quoted && GLOB.test(value)
-  if (tag.field.type !== "Field") {
-    const operator = glob ? FilterOperator.Glob : FilterOperator.Contains
-    return { filter: { kind: FilterKind.Text, value, operator }, scope: null, issue: null, tag }
-  }
-  const field = resolveKey(catalog, tag.field.name)
-  if (!field) return { filter: null, scope: null, issue: UNKNOWN_ISSUE, tag }
+  let operator = !quoted && /[*?]/u.test(value) ? FilterOperator.Glob : FilterOperator.Contains
+  if (clause.key === null) return { filter: { kind: FilterKind.Text, value, operator } }
+  const field = clause.field
+  if (!field) return INVALID
   if (field.kind === FieldKind.Date) {
     const day = parseCalendarDay(value)
-    if (!day) return { filter: null, scope: null, issue: UNKNOWN_ISSUE, tag }
-    const bounds = BOUNDS_OF[tag.operator.operator](day)
-    return { filter: { kind: FilterKind.Date, field, ...bounds }, scope: null, issue: null, tag }
+    return day ? { filter: { kind: FilterKind.Date, field, ...DATE_BOUNDS[comparison](day) } } : INVALID
+  }
+  if (operator !== FilterOperator.Glob && (field.kind === FieldKind.Enum || comparison === ":=")) {
+    operator = FilterOperator.Equals
   }
   return {
     filter: {
       kind: FilterKind.Field,
       field,
-      operator: glob ? FilterOperator.Glob : exactness(field, tag.operator.operator),
-      value: glob ? value : (field.normalize?.(value) ?? value.toLowerCase()),
+      operator,
+      value: operator === FilterOperator.Glob ? value : (field.normalize?.(value) ?? value.toLowerCase()),
     },
-    scope: null,
-    issue: null,
-    tag,
   }
 }
-
-const exactness = (field: Field, operator: ComparisonOperator): FilterOperator =>
-  field.kind === FieldKind.Enum || operator === ":=" ? FilterOperator.Equals : FilterOperator.Contains
-
-const comparatorOf = (tag: TagToken | null): string => tag?.operator?.operator.slice(1) ?? ""
-
-const keyOf = (tag: TagToken): string | null => (tag.field.type === "Field" ? tag.field.name.toLowerCase() : null)
-
-const namesScope = (tag: TagToken): boolean => keyOf(tag) === SCOPE_KEY
-
-const fieldOf = (tag: TagToken, catalog: FieldCatalog): Field | null =>
-  tag.field.type === "Field" && !namesScope(tag) ? (resolveKey(catalog, tag.field.name) ?? null) : null
-
-type Literal = { value: string; quoted: boolean }
 
 const literalOf = (tag: TagToken): Literal | null =>
   tag.expression.type === "LiteralExpression" && typeof tag.expression.value === "string"

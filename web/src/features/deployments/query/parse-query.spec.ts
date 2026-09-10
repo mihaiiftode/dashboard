@@ -44,6 +44,26 @@ describe("parseQuery", () => {
   it("narrows by nothing when the only text is blank", () => {
     expect(setOf('  ""  ').plan.filters).toEqual([])
   })
+
+  it("keeps a grouped single filter and its editing boundaries", () => {
+    const parsed = setOf("(status:failed)")
+
+    expect(parsed.clauses[0]).toMatchObject({
+      text: "(status:failed)",
+      prefix: "(",
+      span: { start: 0, end: 15 },
+      field: { key: "status" },
+      partial: "failed",
+    })
+    expect(parsed.plan.filters[0]).toMatchObject({ kind: FilterKind.Field, value: "failed" })
+  })
+
+  it("marks a grouped conjunction without applying its children", () => {
+    const parsed = setOf("(status:failed team:payments) env:prod")
+
+    expect(parsed.plan.filters).toMatchObject([{ field: { key: "env" }, value: "production" }])
+    expect(parsed.diagnostics).toHaveLength(1)
+  })
 })
 
 describe("resolving a clause against the fields", () => {
@@ -60,6 +80,13 @@ describe("resolving a clause against the fields", () => {
     expect(firstFilter("-team:PAYMENTS")).toMatchObject({
       kind: FilterKind.Not,
       operand: { kind: FilterKind.Field, field: { key: "team" }, value: "payments", operator: FilterOperator.Contains },
+    })
+  })
+
+  it("preserves both negations around a grouped filter", () => {
+    expect(firstFilter("NOT (NOT status:failed)")).toMatchObject({
+      kind: FilterKind.Not,
+      operand: { kind: FilterKind.Not, operand: { kind: FilterKind.Field, value: "failed" } },
     })
   })
 
@@ -100,6 +127,8 @@ describe("scope", () => {
     ["-is:deleted", "live"],
     ["", "live"],
     ["is:deleted -is:deleted", "deleted"],
+    ["NOT (is:deleted)", "live"],
+    ["NOT (NOT is:deleted)", "deleted"],
   ])("reads the scope of %s as %s", (query, scope) => {
     expect(setOf(query).plan.scope).toBe(scope)
   })
