@@ -15,6 +15,7 @@ export type FakeDeploymentsApi = DeploymentsApi & {
   rowFor: (id: string) => Deployment | undefined
   holdWrites: () => () => void
   refuseWrites: (detail: string) => void
+  failWrites: (status: number, detail: string) => void
   connect: () => void
   emit: (documents: Deployment[]) => void
   drop: () => void
@@ -30,6 +31,7 @@ export const createFakeDeploymentsApi = (initial: Deployment[] = []): FakeDeploy
   }
   let held: Promise<void> | null = null
   let refusal: string | null = null
+  let writeFailure: { status: number; detail: string } | null = null
   const listeners = new Set<ChangeListeners>()
   return {
     requests,
@@ -65,6 +67,9 @@ export const createFakeDeploymentsApi = (initial: Deployment[] = []): FakeDeploy
     },
     refuseWrites: (detail) => {
       refusal = detail
+    },
+    failWrites: (status, detail) => {
+      writeFailure = { status, detail }
     },
     holdWrites: () => {
       // oxlint-disable-next-line unicorn/consistent-function-scoping
@@ -104,6 +109,7 @@ export const createFakeDeploymentsApi = (initial: Deployment[] = []): FakeDeploy
       if (held) await held
       const current = rows.find((row) => row.deployment_id === request.id)
       if (!current) throw new ApiError(NOT_FOUND, "Not Found")
+      if (writeFailure !== null) throw new ApiError(writeFailure.status, "Write Failed", writeFailure.detail)
       if (refusal !== null) throw new ApiError(UNPROCESSABLE, "Unprocessable Content", refusal)
       if (current.deleted_at !== null) throw new ApiError(CONFLICT, "Conflict")
       if (request.expectedRevision !== null && current.revision !== request.expectedRevision) {

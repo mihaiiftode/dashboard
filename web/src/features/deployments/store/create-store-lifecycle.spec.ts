@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { deployments } from "@/test/deployments"
 import { createFakeDeploymentsApi } from "./fake-api"
 import { createDeploymentsStore } from "./create-store"
@@ -37,5 +37,52 @@ describe("store lifecycle", () => {
     await store.destroy()
 
     await expect(store.destroy()).resolves.toBeUndefined()
+  })
+})
+
+const storeWith = async (api: ReturnType<typeof createFakeDeploymentsApi>) => {
+  const store = await createDeploymentsStore({
+    api,
+    databaseName: `store-${crypto.randomUUID()}`,
+    multiInstance: false,
+  })
+  await store.collection.preload()
+  await vi.waitFor(() => expect(store.collection.size).toBe(1))
+  return store
+}
+
+const afterPushSettles = () =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, 150)
+  })
+
+describe("write failure classification", () => {
+  it("reports a validation refusal as a rejection", async () => {
+    const rows = deployments(1)
+    const api = createFakeDeploymentsApi(rows)
+    const store = await storeWith(api)
+    api.refuseWrites("attributes oncall must be an email address")
+
+    store.collection.update(rows[0].deployment_id, (draft) => {
+      draft.attributes.name = "renamed"
+    })
+
+    await vi.waitFor(() => expect(store.sync.snapshot().rejection?.detail).toContain("must be an email address"))
+    await store.destroy()
+  })
+
+  it.each([408, 429])("does not turn a retryable %i into a permanent rejection", async (status) => {
+    const rows = deployments(1)
+    const api = createFakeDeploymentsApi(rows)
+    const store = await storeWith(api)
+    api.failWrites(status, "try again later")
+
+    store.collection.update(rows[0].deployment_id, (draft) => {
+      draft.attributes.name = "renamed"
+    })
+
+    await afterPushSettles()
+    expect(store.sync.snapshot().rejection).toBeNull()
+    await store.destroy()
   })
 })

@@ -31,6 +31,7 @@ const REPLICATION_IDENTIFIER = "deployments"
 const PUSH_BATCH_SIZE = 5
 const CLIENT_ERROR_FLOOR = 400
 const SERVER_ERROR_FLOOR = 500
+const RETRYABLE_STATUSES: ReadonlySet<number> = new Set([408, 425, 429])
 
 type DeploymentsCollection = Collection<Deployment, string, Record<string, never>>
 
@@ -233,4 +234,7 @@ const settleWrite = async (attempted: Deployment, master: Deployment, api: Deplo
 }
 
 const rejected = (error: unknown): error is ApiError =>
-  error instanceof ApiError && error.status >= CLIENT_ERROR_FLOOR && error.status < SERVER_ERROR_FLOOR
+  error instanceof ApiError &&
+  error.status >= CLIENT_ERROR_FLOOR &&
+  error.status < SERVER_ERROR_FLOOR &&
+  !RETRYABLE_STATUSES.has(error.status)
