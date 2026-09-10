@@ -35,17 +35,22 @@ export const DeploymentsStoreProvider = ({ api, databaseName, children }: Deploy
 
 type OpenStoreProps = DeploymentsStoreProviderProps & { retry: () => void }
 
+let released: Promise<unknown> = Promise.resolve()
+
 const OpenStore = ({ api, databaseName, retry, children }: OpenStoreProps) => {
   const [state, setState] = useState<StoreState>({ status: "loading" })
 
   useEffect(() => {
-    let opened: DeploymentsStore | null = null
     let abandoned = false
-    createDeploymentsStore({ api: api ?? createFetchDeploymentsApi(env.NEXT_PUBLIC_API_URL), databaseName })
+    const opening = released
+      .catch(() => null)
+      .then(() =>
+        createDeploymentsStore({ api: api ?? createFetchDeploymentsApi(env.NEXT_PUBLIC_API_URL), databaseName }),
+      )
+    opening
       .then((store) => {
-        opened = store
-        if (abandoned) return store.destroy()
-        return setState({ status: "ready", store })
+        if (!abandoned) setState({ status: "ready", store })
+        return store
       })
       .catch((error: Error) => {
         log.error("store failed to open: {message}", { message: error.message })
@@ -53,7 +58,7 @@ const OpenStore = ({ api, databaseName, retry, children }: OpenStoreProps) => {
       })
     return () => {
       abandoned = true
-      void opened?.destroy()
+      released = opening.then((store) => store.destroy()).catch(() => null)
     }
   }, [api, databaseName])
 
