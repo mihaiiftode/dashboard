@@ -19,6 +19,7 @@ const INVALID = { issue: "Unknown field, missing value, or unsupported filter" }
 const SYNTAX_ISSUE = "Incomplete or invalid query syntax"
 const SCOPE_KEY = "is"
 const GLOB = /[*?]/u
+const UNQUOTED_END = /[\s)]/u
 const RELATIONAL = new Set<ComparisonOperator>([":<", ":<=", ":>", ":>="])
 
 export const DELETED_SCOPE = "deleted"
@@ -112,13 +113,15 @@ const parseClause = (node: ParserAst, source: string, catalog: FieldCatalog): { 
   const tag = expression.type === "Tag" ? expression : null
   const comparison = tag?.operator?.operator ?? ":"
   const key = tag?.field.type === "Field" ? tag.field.name.toLowerCase() : null
-  const literal = tag ? literalOf(tag) : null
-  const edit = tag?.location ?? node.location
+  const literal = tag ? literalOf(tag, source) : null
+  const literalEnd = tag ? literalEndOf(tag, source) : node.location.end
+  const edit = stretched(tag?.location ?? node.location, literalEnd)
+  const span = stretched(node.location, literalEnd)
   const clause: Clause = {
-    span: node.location,
+    span,
     edit,
     editText: source.slice(edit.start, edit.end),
-    text: source.slice(node.location.start, node.location.end),
+    text: source.slice(span.start, span.end),
     key,
     field: key === null || key === SCOPE_KEY ? null : (resolveKey(catalog, key) ?? null),
     partial: literal?.value ?? "",
@@ -168,7 +171,24 @@ const normalized = (field: Field, value: string): string => {
   return field.aliases?.[lowered] ?? lowered
 }
 
-const literalOf = (tag: TagToken): Literal | null =>
-  tag.expression.type === "LiteralExpression" && typeof tag.expression.value === "string"
-    ? { value: tag.expression.value, quoted: tag.expression.quoted }
-    : null
+const literalOf = (tag: TagToken, source: string): Literal | null => {
+  const { expression } = tag
+  if (expression.type !== "LiteralExpression") return null
+  if (typeof expression.value === "string") return { value: expression.value, quoted: expression.quoted }
+  if (expression.value === null) return null
+  return { value: unquotedAt(source, expression.location.start), quoted: false }
+}
+
+const unquotedAt = (source: string, start: number): string => {
+  const rest = source.slice(start)
+  const stop = rest.search(UNQUOTED_END)
+  return stop === -1 ? rest : rest.slice(0, stop)
+}
+
+const literalEndOf = (tag: TagToken, source: string): number => {
+  const { expression } = tag
+  if (expression.type !== "LiteralExpression" || typeof expression.value === "string") return tag.location.end
+  return expression.location.start + unquotedAt(source, expression.location.start).length
+}
+
+const stretched = (span: Span, end: number): Span => (end > span.end ? { start: span.start, end } : span)

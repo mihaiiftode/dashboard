@@ -128,6 +128,19 @@ describe("compileQuery", () => {
     )
   })
 
+  it("matches bare digits without losing leading zeros", async () => {
+    const target = rows[4]
+
+    expect(await namesFor("004", rows)).toEqual([target.attributes.name])
+  })
+
+  it("keeps a trailing zero in a decimal value", async () => {
+    const versioned = deployment(1, { version: "2.20" })
+    const other = deployment(2, { version: "2.2" })
+
+    expect(await namesFor("version:2.20", [versioned, other])).toEqual([versioned.attributes.name])
+  })
+
   it("matches an exact value whatever case it was typed or stored in", async () => {
     const mixed = deployment(1, { attributes: { name: "Payments" } })
 
