@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest"
 import "fake-indexeddb/auto"
 import { cleanup, configure } from "@testing-library/react"
 import { afterEach } from "vitest"
+import { ResizeObserverStub } from "./resize-observer-stub"
 
 configure({ asyncUtilTimeout: 5000 })
 
@@ -43,17 +44,6 @@ if (typeof window.PointerEvent !== "function") {
 }
 
 if (typeof window.ResizeObserver !== "function") {
-  class ResizeObserverStub implements ResizeObserver {
-    constructor(private readonly callback: ResizeObserverCallback) {}
-    observe(target: Element) {
-      const rect = target.getBoundingClientRect()
-      const size = [{ inlineSize: rect.width, blockSize: rect.height }]
-      const entry = { target, contentRect: rect, borderBoxSize: size, contentBoxSize: size }
-      this.callback([entry as unknown as ResizeObserverEntry], this)
-    }
-    unobserve() {}
-    disconnect() {}
-  }
   window.ResizeObserver = ResizeObserverStub
 }
 

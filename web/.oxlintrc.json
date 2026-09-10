@@ -33,7 +33,18 @@
         ]
       }
     ],
-    "react/react-in-jsx-scope": "off"
+    "react/react-in-jsx-scope": "off",
+    "import/no-unassigned-import": [
+      "error",
+      {
+        "allow": [
+          "**/*.css",
+          "fake-indexeddb/auto",
+          "@testing-library/jest-dom/vitest",
+          "./src/lib/env"
+        ]
+      }
+    ]
   },
   "ignorePatterns": [
     "node_modules",
