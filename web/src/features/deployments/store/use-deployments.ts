@@ -97,10 +97,15 @@ export const useDeploymentWrites = (): Omit<DeploymentsAccess, "rows" | "pending
   )
 
   const copyId = useCallback((id: string) => {
-    navigator.clipboard
-      .writeText(id)
-      .then(() => notify.success({ title: "Deployment ID copied" }))
-      .catch(() => notify.error({ title: "Copy failed", description: `Select and copy it manually: ${id}` }))
+    const copy = async () => {
+      try {
+        await navigator.clipboard.writeText(id)
+        notify.success({ title: "Deployment ID copied" })
+      } catch {
+        notify.error({ title: "Copy failed", description: `Select and copy it manually: ${id}` })
+      }
+    }
+    void copy()
   }, [])
 
   return useMemo(

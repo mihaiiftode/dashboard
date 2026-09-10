@@ -5,7 +5,7 @@ import { TableSkeleton } from "../components/table-skeleton"
 import { DeploymentsStoreProvider } from "../store/store-context"
 import type { DeploymentsPageProps } from "./deployments-page"
 
-const DeploymentsPage = dynamic(() => import("./deployments-page").then((module) => module.DeploymentsPage), {
+const DeploymentsPage = dynamic(async () => (await import("./deployments-page")).DeploymentsPage, {
   ssr: false,
   loading: () => <TableSkeleton />,
 })

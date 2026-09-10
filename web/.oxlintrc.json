@@ -1,6 +1,17 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "react", "jsx-a11y", "nextjs", "import", "unicorn", "promise", "node", "vitest", "oxc"],
+  "plugins": [
+    "typescript",
+    "react",
+    "jsx-a11y",
+    "nextjs",
+    "import",
+    "unicorn",
+    "promise",
+    "node",
+    "vitest",
+    "oxc"
+  ],
   "categories": {
     "correctness": "error",
     "suspicious": "error",
@@ -9,58 +20,24 @@
   },
   "rules": {
     "no-console": "error",
-    "no-underscore-dangle": [
-      "error",
-      {
-        "allow": ["_deleted"]
-      }
-    ],
+    "no-underscore-dangle": "error",
     "typescript/no-explicit-any": "error",
     "typescript/no-non-null-assertion": "error",
-    "react/react-in-jsx-scope": "off",
-    "react/incompatible-library": "off",
-    "import/no-unassigned-import": "off",
-    "jsx-a11y/prefer-tag-over-role": "off",
+    "promise/prefer-await-to-then": "error",
     "jsx-a11y/no-noninteractive-tabindex": [
       "error",
       {
-        "roles": ["tabpanel", "region"]
+        "roles": [
+          "tabpanel",
+          "region"
+        ]
       }
     ],
-    "eslint/max-lines-per-function": "off",
-    "import/max-dependencies": "off",
-    "eslint/require-await": "off",
-    "vitest/no-conditional-in-test": "off"
+    "react/react-in-jsx-scope": "off"
   },
-  "overrides": [
-    {
-      "files": ["src/components/ui/**"],
-      "rules": {
-        "eslint/eqeqeq": "off"
-      }
-    },
-    {
-      "files": ["**/*.spec.ts", "**/*.spec.tsx"],
-      "rules": {
-        "typescript/no-non-null-assertion": "off"
-      }
-    },
-    {
-      "files": ["src/components/ui/**"],
-      "rules": {
-        "jsx-a11y/click-events-have-key-events": "off",
-        "jsx-a11y/no-noninteractive-element-interactions": "off",
-        "jsx-a11y/label-has-associated-control": "off",
-        "react/no-array-index-key": "off",
-        "react/no-object-type-as-default-prop": "off"
-      }
-    },
-    {
-      "files": ["src/test/setup.ts"],
-      "rules": {
-        "eslint/max-classes-per-file": "off"
-      }
-    }
-  ],
-  "ignorePatterns": ["node_modules", ".next", "next-env.d.ts"]
+  "ignorePatterns": [
+    "node_modules",
+    ".next",
+    "next-env.d.ts"
+  ]
 }
