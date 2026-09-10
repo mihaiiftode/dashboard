@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { parseCalendarDay, startOfCalendarDay, startOfNextDay, today } from "./dates"
+import { parseCalendarDay, startOfCalendarDay, startOfNextDay, today, type CalendarDay } from "./dates"
 
 const boundsOf = (day: string) => {
   const parsed = parseCalendarDay(day)
@@ -9,7 +9,10 @@ const boundsOf = (day: string) => {
 
 describe("parseCalendarDay", () => {
   it("reads a calendar day as the UTC start of that day", () => {
-    expect(startOfCalendarDay(parseCalendarDay("2026-09-10")!)).toBe("2026-09-10T00:00:00.000000Z")
+    const day = parseCalendarDay("2026-09-10")
+
+    expect(day).not.toBeNull()
+    expect(startOfCalendarDay(day as CalendarDay)).toBe("2026-09-10T00:00:00.000000Z")
   })
 
   it.each([

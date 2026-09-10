@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { deployments } from "@/test/deployments"
 import { chipsOf } from "./chips"
 import { withoutClause } from "./query-edits"
-import { parseQuery } from "./parse-query"
+import { parseQuery, type Span } from "./parse-query"
 import { buildSchema } from "./schema"
 
 const { catalog } = buildSchema(deployments(12))
@@ -39,7 +39,8 @@ describe("chipsOf", () => {
     const document = parseQuery("payment status:failed", catalog)
     const chip = chipsOf(document)[1]
 
-    expect(withoutClause(document, chip.span!)).toBe("payment")
+    expect(chip.span).not.toBeNull()
+    expect(withoutClause(document, chip.span as Span)).toBe("payment")
   })
 
   it("represents invalid source removal without a clause span", () => {
