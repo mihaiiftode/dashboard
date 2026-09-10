@@ -7,9 +7,10 @@ from pymongo import ASCENDING, AsyncMongoClient, ReturnDocument
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.deployments.models import Checkpoint, Deployment
+from app.deployments.repository import RETENTION_SECONDS
 
 COLLECTION_NAME = "deployments"
-RETENTION_SECONDS = 30 * 24 * 60 * 60
+
 CHECKPOINT_INDEX = "updated_at_deployment_id"
 PROJECTION = {"_id": False}
 

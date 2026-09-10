@@ -1,5 +1,4 @@
 import asyncio
-import json
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
@@ -73,7 +72,7 @@ async def test_overflow_tells_a_slow_stream_to_resynchronize() -> None:
         assert await anext(changes) is None
 
 
-async def test_frames_carry_the_document_and_the_checkpoint_to_resume_from() -> None:
+async def test_frames_name_the_deployment_that_changed() -> None:
     feed = ChangeFeed()
     changed = deployment(uuid4())
     stream = frames(feed)
@@ -81,18 +80,11 @@ async def test_frames_carry_the_document_and_the_checkpoint_to_resume_from() -> 
     try:
         assert await anext(stream) == {"comment": "open", "retry": 1000}
         frame = await asyncio.wait_for(anext(stream), timeout=5)
-        event = json.loads(str(frame["data"]))
     finally:
         await published
         await stream.aclose()
 
-    assert [item["deployment_id"] for item in event["documents"]] == [
-        str(changed.deployment_id)
-    ]
-    assert event["checkpoint"] == {
-        "updated_at": changed.updated_at.isoformat().replace("+00:00", "Z"),
-        "deployment_id": str(changed.deployment_id),
-    }
+    assert frame["data"] == str(changed.deployment_id)
 
 
 async def publish_soon(feed: ChangeFeed, changed: Deployment) -> None:
@@ -146,10 +138,9 @@ async def test_streams_a_write_to_a_connected_client(live_api: str) -> None:
             )
             assert written.status_code == 200
 
-            event = json.loads(await asyncio.wait_for(next_data(lines), timeout=5))
+            changed = await asyncio.wait_for(next_data(lines), timeout=5)
 
-    assert [item["attributes"]["name"] for item in event["documents"]] == ["streamed"]
-    assert event["checkpoint"]["deployment_id"] == target
+    assert changed == target
 
 
 async def next_data(lines: AsyncIterator[str]) -> str:
@@ -166,14 +157,12 @@ async def test_streams_a_deletion_and_a_restore(live_api: str) -> None:
             lines = response.aiter_lines()
 
             assert (await http.delete(f"/v1/deployments/{target}")).status_code == 204
-            deletion = json.loads(await asyncio.wait_for(next_data(lines), timeout=5))
-            assert deletion["documents"][0]["deleted_at"] is not None
+            assert await asyncio.wait_for(next_data(lines), timeout=5) == target
 
             assert (
                 await http.post(f"/v1/deployments/{target}/restore")
             ).status_code == 200
-            restore = json.loads(await asyncio.wait_for(next_data(lines), timeout=5))
-            assert restore["documents"][0]["deleted_at"] is None
+            assert await asyncio.wait_for(next_data(lines), timeout=5) == target
 
 
 async def test_opens_the_stream_before_anything_has_changed(live_api: str) -> None:

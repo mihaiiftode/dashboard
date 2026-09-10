@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from uuid import UUID
 
 from app.deployments.change_feed import ChangePublisher
@@ -11,7 +11,7 @@ from app.deployments.models import (
     DeploymentPage,
     Writable,
 )
-from app.deployments.repository import DeploymentRepository
+from app.deployments.repository import RETENTION_WINDOW, DeploymentRepository
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +118,7 @@ class DeploymentService:
         current = await self.get(deployment_id)
         if current.deleted_at is None:
             raise DeploymentNotDeleted(deployment_id)
-        if current.deleted_at <= datetime.now(UTC) - timedelta(days=30):
+        if current.deleted_at <= datetime.now(UTC) - RETENTION_WINDOW:
             raise DeploymentNotFound(deployment_id)
         return await self._written(
             await self._stamped(current, {"deleted_at": None}), "restored"

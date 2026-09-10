@@ -20,7 +20,6 @@ from sse_starlette import EventSourceResponse
 from app.deployments.change_feed import ChangeFeed
 from app.deployments.models import (
     DEFAULT_LIMIT,
-    ChangeEvent,
     Checkpoint,
     Deployment,
     DeploymentPage,
@@ -130,14 +129,15 @@ async def stream_changes(feed: FeedDep, settings: SettingsDep) -> EventSourceRes
     return EventSourceResponse(frames(feed), ping=settings.heartbeat_seconds)
 
 
+def changed_id(changed: Deployment | None) -> str:
+    return "" if changed is None else str(changed.deployment_id)
+
+
 async def frames(feed: ChangeFeed) -> AsyncGenerator[dict[str, object]]:
     async with feed.subscribe() as changes:
         yield {"comment": "open", "retry": RECONNECT_MS}
         async for changed in changes:
-            if changed is None:
-                yield {"event": "resync", "data": "{}"}
-            else:
-                yield {"data": ChangeEvent.for_one(changed).model_dump_json()}
+            yield {"data": changed_id(changed)}
 
 
 @router.post(

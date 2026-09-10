@@ -1,8 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Protocol
 from uuid import UUID
 
 from app.deployments.models import Checkpoint, Deployment
+
+RETENTION_WINDOW = timedelta(days=30)
+RETENTION_SECONDS = int(RETENTION_WINDOW.total_seconds())
 
 
 class DeploymentRepository(Protocol):
