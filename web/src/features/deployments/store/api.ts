@@ -74,11 +74,19 @@ const subscribeWithEventSource =
     source.addEventListener("open", () => onOpen())
     source.addEventListener("error", () => onError())
     source.addEventListener("message", (message: MessageEvent<string>) => {
-      const parsed = changeEventSchema.safeParse(JSON.parse(message.data))
+      const parsed = changeEventSchema.safeParse(readFrame(message.data))
       if (parsed.success) onEvent(parsed.data)
     })
     return () => source.close()
   }
+
+const readFrame = (data: string): unknown => {
+  try {
+    return JSON.parse(data)
+  } catch {
+    return null
+  }
+}
 
 const eventsUrl = (baseUrl: string): string => new URL("/v1/deployments/events", baseUrl).toString()
 

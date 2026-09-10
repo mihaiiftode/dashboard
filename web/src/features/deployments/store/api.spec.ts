@@ -60,3 +60,88 @@ describe("createFetchDeploymentsApi", () => {
     ).rejects.toMatchObject({ title: "Malformed response" })
   })
 })
+
+const recordingFetcher = (status: number, body: unknown) => {
+  const calls: { url: string; init: RequestInit }[] = []
+  const fetcher = async (url: string | URL | Request, init: RequestInit = {}) => {
+    calls.push({ url: String(url), init })
+    return new Response(body === null ? null : JSON.stringify(body), {
+      status,
+      headers: { "content-type": "application/json" },
+    })
+  }
+  return { calls, fetcher: fetcher as typeof globalThis.fetch }
+}
+
+const writeRequest = (row: ReturnType<typeof deployments>[number], expectedRevision: number | null = null) => ({
+  id: row.deployment_id,
+  writable: {
+    version: row.version,
+    status: row.status,
+    type: row.type,
+    environment: row.environment,
+    attributes: row.attributes,
+  },
+  expectedRevision,
+})
+
+describe("the write contract", () => {
+  it("reports a successful replace as written and sends If-Match", async () => {
+    const [row] = deployments(1)
+    const { calls, fetcher } = recordingFetcher(200, row)
+
+    const outcome = await createFetchDeploymentsApi("http://api", fetcher).replace(writeRequest(row, 3))
+
+    expect(outcome).toEqual({ outcome: "written", deployment: row })
+    expect(calls[0].init.method).toBe("PUT")
+    expect((calls[0].init.headers as Record<string, string>)["if-match"]).toBe('"3"')
+  })
+
+  it("reads a 412 body as the winning deployment rather than an error", async () => {
+    const [row] = deployments(1)
+    const winner = { ...row, revision: row.revision + 1 }
+    const { fetcher } = recordingFetcher(412, winner)
+
+    const outcome = await createFetchDeploymentsApi("http://api", fetcher).replace(writeRequest(row, 1))
+
+    expect(outcome).toEqual({ outcome: "conflict", deployment: winner })
+  })
+
+  it("raises a 422 problem as an ApiError carrying its detail", async () => {
+    const [row] = deployments(1)
+    const { fetcher } = recordingFetcher(422, {
+      title: "Unprocessable Content",
+      detail: "attributes oncall must be an email address",
+    })
+
+    await expect(createFetchDeploymentsApi("http://api", fetcher).replace(writeRequest(row))).rejects.toThrow(
+      /must be an email address/u,
+    )
+  })
+
+  it("refuses a success body that does not match the schema", async () => {
+    const [row] = deployments(1)
+    const { fetcher } = recordingFetcher(200, { deployment_id: row.deployment_id })
+
+    await expect(createFetchDeploymentsApi("http://api", fetcher).replace(writeRequest(row))).rejects.toThrow(
+      /malformed response/iu,
+    )
+  })
+
+  it("accepts an empty 204 body when deleting", async () => {
+    const [row] = deployments(1)
+    const { calls, fetcher } = recordingFetcher(204, null)
+
+    await expect(createFetchDeploymentsApi("http://api", fetcher).remove(row.deployment_id)).resolves.toBeUndefined()
+    expect(calls[0].init.method).toBe("DELETE")
+  })
+
+  it("posts a restore and validates the returned deployment", async () => {
+    const [row] = deployments(1)
+    const { calls, fetcher } = recordingFetcher(200, row)
+
+    await expect(createFetchDeploymentsApi("http://api", fetcher).restore(row.deployment_id)).resolves.toEqual(row)
+    expect(calls[0].url).toMatch(/\/restore$/u)
+    expect(calls[0].init.method).toBe("POST")
+  })
+})
