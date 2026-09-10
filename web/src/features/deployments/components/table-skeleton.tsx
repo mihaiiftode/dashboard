@@ -1,14 +1,14 @@
 import { Skeleton } from "@/components/ui/skeleton"
 
 const HEADERS = [
-  { id: "name", width: 220 },
-  { id: "status", width: 80 },
-  { id: "type", width: 90 },
-  { id: "env", width: 60 },
-  { id: "version", width: 60 },
-  { id: "creator", width: 100 },
-  { id: "description", width: 160 },
-  { id: "created", width: 90 },
+  { id: "name", className: "h-3 w-55" },
+  { id: "status", className: "h-3 w-20" },
+  { id: "type", className: "h-3 w-22.5" },
+  { id: "env", className: "h-3 w-15" },
+  { id: "version", className: "h-3 w-15" },
+  { id: "creator", className: "h-3 w-25" },
+  { id: "description", className: "h-3 w-40" },
+  { id: "created", className: "h-3 w-22.5" },
 ]
 const CELLS = [
   { id: "name", className: "h-3.5 w-52" },
@@ -31,7 +31,7 @@ export const TableSkeleton = ({ rows = 16 }: { rows?: number }) => (
     </div>
     <div className="flex h-9 items-center gap-6 border-b px-4">
       {HEADERS.map((header) => (
-        <Skeleton key={header.id} className="h-3" style={{ width: header.width }} />
+        <Skeleton key={header.id} className={header.className} />
       ))}
     </div>
     {rowKeys(rows).map((rowKey) => (
