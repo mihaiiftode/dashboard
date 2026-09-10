@@ -1,8 +1,7 @@
 import { cn } from "@/lib/utils"
+import { nothingVisible, type VisibleRange } from "./visible-range"
 
 export type FooterCounts = {
-  start: number
-  end: number
   matched: number
   total: number
 }
@@ -11,6 +10,7 @@ export type SyncState = "connecting" | "live" | "reconnecting" | "offline"
 
 type FooterBarProps = {
   counts?: FooterCounts
+  range?: VisibleRange
   sync: SyncState
 }
 
@@ -22,14 +22,14 @@ type FooterLabels = {
 
 const placeholderLabels: FooterLabels = { window: "rows — of ", matched: "—", total: null }
 
-const labelsFor = (counts: FooterCounts): FooterLabels => ({
-  window: counts.matched === 0 ? null : `rows ${counts.start.toLocaleString()}–${counts.end.toLocaleString()} of `,
+const labelsFor = (counts: FooterCounts, range: VisibleRange): FooterLabels => ({
+  window: counts.matched === 0 ? null : `rows ${range.start.toLocaleString()}–${range.end.toLocaleString()} of `,
   matched: counts.matched === 0 ? "0 rows" : counts.matched.toLocaleString(),
   total: counts.matched === counts.total ? null : `${counts.total.toLocaleString()} total`,
 })
 
-export const FooterBar = ({ counts, sync }: FooterBarProps) => {
-  const labels = counts ? labelsFor(counts) : placeholderLabels
+export const FooterBar = ({ counts, range = nothingVisible, sync }: FooterBarProps) => {
+  const labels = counts ? labelsFor(counts, range) : placeholderLabels
   return (
     <footer
       data-slot="footer-bar"

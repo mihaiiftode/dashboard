@@ -1,54 +1,56 @@
 "use client"
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react"
 import { FooterBar, type FooterCounts, type SyncState } from "./footer-bar"
+import { createVisibleRangeStore, nothingVisible, type VisibleRange, type VisibleRangeStore } from "./visible-range"
 
 export type FooterStatus = {
   counts?: FooterCounts
   sync: SyncState
 }
 
-export type VisibleRange = { start: number; end: number }
+export type { VisibleRange }
 
 const connecting: FooterStatus = { sync: "connecting" }
-const nothingVisible: VisibleRange = { start: 0, end: 0 }
 
 const StatusContext = createContext<FooterStatus>(connecting)
 const PublishContext = createContext<(status: FooterStatus) => void>(() => {})
-const RangeContext = createContext<VisibleRange>(nothingVisible)
-const PublishRangeContext = createContext<(range: VisibleRange) => void>(() => {})
+const RangeStoreContext = createContext<VisibleRangeStore | null>(null)
 
 export const FooterStatusProvider = ({ children }: { children: ReactNode }) => {
   const [status, setStatus] = useState(connecting)
-  const [range, setRange] = useState(nothingVisible)
-  const publishRange = useCallback(
-    (next: VisibleRange) =>
-      setRange((previous) => (previous.start === next.start && previous.end === next.end ? previous : next)),
-    [],
-  )
+  const [rangeStore] = useState(createVisibleRangeStore)
   return (
     <PublishContext.Provider value={setStatus}>
-      <PublishRangeContext.Provider value={publishRange}>
-        <RangeContext.Provider value={range}>
-          <StatusContext.Provider value={status}>{children}</StatusContext.Provider>
-        </RangeContext.Provider>
-      </PublishRangeContext.Provider>
+      <RangeStoreContext.Provider value={rangeStore}>
+        <StatusContext.Provider value={status}>{children}</StatusContext.Provider>
+      </RangeStoreContext.Provider>
     </PublishContext.Provider>
   )
 }
 
-export const useVisibleRange = () => useContext(RangeContext)
+const useRangeStore = (): VisibleRangeStore | null => useContext(RangeStoreContext)
 
 export const usePublishVisibleRange = (range: VisibleRange) => {
-  const publish = useContext(PublishRangeContext)
+  const store = useRangeStore()
   useEffect(() => {
-    publish(range)
-  }, [publish, range])
+    store?.publish(range)
+  }, [store, range])
 }
+
+const readNothing = () => nothingVisible
+
+const useVisibleRange = (): VisibleRange => {
+  const store = useRangeStore()
+  return useSyncExternalStore(store?.subscribe ?? noSubscription, store?.snapshot ?? readNothing, readNothing)
+}
+
+const noSubscription = () => () => {}
 
 export const StatusFooter = () => {
   const status = useContext(StatusContext)
-  return <FooterBar counts={status.counts} sync={status.sync} />
+  const range = useVisibleRange()
+  return <FooterBar counts={status.counts} range={range} sync={status.sync} />
 }
 
 export const usePublishFooterStatus = (status: FooterStatus) => {
