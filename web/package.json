@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
+    "@hookform/resolvers": "^5.9.1",
     "@logtape/logtape": "^2.3.4",
     "@t3-oss/env-nextjs": "^0.13.11",
     "@tanstack/react-db": "^0.3.7",
@@ -30,6 +31,7 @@
     "nuqs": "^2.10.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "react-hook-form": "^7.87.0",
     "rxdb": "^17.5.0",
     "rxjs": "^7.8.2",
     "shadcn": "^4.21.0",

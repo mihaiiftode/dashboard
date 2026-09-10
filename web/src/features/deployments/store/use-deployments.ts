@@ -10,7 +10,7 @@ import type { WriteConflict } from "./conflict"
 import type { WriteRejection } from "./sync-tracker"
 import { useDeploymentsCollection } from "./store-context"
 import { useSyncStatus } from "./use-sync-status"
-import type { Deployment } from "./schema"
+import { REQUIRED_ATTRIBUTE_KEYS, type Deployment } from "./schema"
 
 export type DeploymentsAccess = {
   rows: Deployment[]
@@ -48,9 +48,9 @@ export const useDeploymentWrites = (): Omit<DeploymentsAccess, "rows" | "pending
 
   const setAttribute = useCallback(
     (id: string, key: string, value: string) => {
-      if (key === "name" && !value) {
+      if (value === "" && REQUIRED_ATTRIBUTE_KEYS.has(key)) {
         notify.warning({
-          title: "Name is required",
+          title: `${key[0].toUpperCase()}${key.slice(1)} is required`,
           description: "Type a name or press Escape to keep the current one.",
         })
         return

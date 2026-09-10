@@ -1,14 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { Controller, useForm } from "react-hook-form"
 import { PlusIcon, XIcon } from "lucide-react"
+import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { Field as FormField, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { entryViolation, valueViolation } from "../../store/attribute-rules"
-import type { Deployment } from "../../store/schema"
-
-const REQUIRED_KEY = "name"
+import {
+  attributeEntrySchema,
+  attributeValueSchema,
+  REQUIRED_ATTRIBUTE_KEYS,
+  type Deployment,
+} from "../../store/schema"
 
 type AttributeRowProps = {
   keyName: string
@@ -18,41 +22,45 @@ type AttributeRowProps = {
 }
 
 const AttributeRow = ({ keyName, value, removable, onCommit }: AttributeRowProps) => {
-  const [draft, setDraft] = useState(value)
-  const [violation, setViolation] = useState<string | null>(null)
+  const form = useForm({
+    resolver: zodResolver(z.object({ value: attributeValueSchema(keyName) })),
+    defaultValues: { value },
+  })
+  const commit = form.handleSubmit((entry) => {
+    if (entry.value !== value) onCommit(entry.value)
+  })
   const id = `attr-${keyName}`
-  const commit = () => {
-    const next = draft.trim()
-    if (next === value) return setViolation(null)
-    const reason = valueViolation(keyName, next)
-    setViolation(reason)
-    if (reason === null) onCommit(next)
-  }
   return (
-    <FormField data-invalid={violation !== null || undefined} className="gap-1">
-      <div className="flex items-center gap-1">
-        <FieldLabel htmlFor={id} className="w-24 shrink-0 truncate font-mono text-[11px] text-muted-foreground">
-          {keyName}
-        </FieldLabel>
-        <Input
-          id={id}
-          value={draft}
-          autoComplete="off"
-          spellCheck={false}
-          aria-invalid={violation !== null}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={commit}
-          onKeyDown={(event) => (event.key === "Enter" ? commit() : undefined)}
-          className="h-7 font-mono text-xs"
-        />
-        {removable ? (
-          <Button variant="ghost" size="icon-xs" aria-label={`Remove ${keyName}`} onClick={() => onCommit("")}>
-            <XIcon />
-          </Button>
-        ) : null}
-      </div>
-      {violation ? <FieldError>{`${keyName} ${violation}`}</FieldError> : null}
-    </FormField>
+    <form onSubmit={commit}>
+      <Controller
+        name="value"
+        control={form.control}
+        render={({ field, fieldState }) => (
+          <FormField data-invalid={fieldState.invalid || undefined} className="gap-1">
+            <div className="flex items-center gap-1">
+              <FieldLabel htmlFor={id} className="w-24 shrink-0 truncate font-mono text-[11px] text-muted-foreground">
+                {keyName}
+              </FieldLabel>
+              <Input
+                {...field}
+                id={id}
+                autoComplete="off"
+                spellCheck={false}
+                aria-invalid={fieldState.invalid}
+                onBlur={() => void commit()}
+                className="h-7 font-mono text-xs"
+              />
+              {removable ? (
+                <Button variant="ghost" size="icon-xs" aria-label={`Remove ${keyName}`} onClick={() => onCommit("")}>
+                  <XIcon />
+                </Button>
+              ) : null}
+            </div>
+            {fieldState.invalid ? <FieldError>{`${keyName} ${fieldState.error?.message ?? ""}`}</FieldError> : null}
+          </FormField>
+        )}
+      />
+    </form>
   )
 }
 
@@ -63,19 +71,17 @@ type AttributesEditorProps = {
 }
 
 export const AttributesEditor = ({ deployment, keys, onCommit }: AttributesEditorProps) => {
-  const [newKey, setNewKey] = useState("")
-  const [newValue, setNewValue] = useState("")
-  const [violation, setViolation] = useState<string | null>(null)
+  const form = useForm({
+    resolver: zodResolver(attributeEntrySchema),
+    defaultValues: { key: "", value: "" },
+  })
+  const add = form.handleSubmit((entry) => {
+    onCommit(entry.key, entry.value)
+    form.reset()
+  })
   const present = keys.filter((key) => deployment.attributes[key] !== undefined)
-  const add = () => {
-    const key = newKey.trim().toLowerCase()
-    const reason = entryViolation(key, newValue)
-    setViolation(reason)
-    if (reason !== null) return
-    onCommit(key, newValue.trim())
-    setNewKey("")
-    setNewValue("")
-  }
+  const named = form.watch("key").trim()
+  const violation = form.formState.errors.key ?? form.formState.errors.value
   return (
     <div className="flex flex-col gap-2">
       <p className="truncate font-mono text-xs font-medium">{deployment.attributes.name}</p>
@@ -85,37 +91,50 @@ export const AttributesEditor = ({ deployment, keys, onCommit }: AttributesEdito
           key={key}
           keyName={key}
           value={deployment.attributes[key] ?? ""}
-          removable={key !== REQUIRED_KEY}
+          removable={!REQUIRED_ATTRIBUTE_KEYS.has(key)}
           onCommit={(next) => onCommit(key, next)}
         />
       ))}
-      <FormField data-invalid={violation !== null || undefined} className="gap-1 border-t pt-2">
-        <div className="flex items-center gap-1">
-          <Input
-            value={newKey}
-            onChange={(event) => setNewKey(event.target.value.toLowerCase())}
-            placeholder="key…"
-            aria-label="New attribute key"
-            autoComplete="off"
-            spellCheck={false}
-            aria-invalid={violation !== null}
-            className="h-7 w-24 shrink-0 font-mono text-xs"
-          />
-          <Input
-            value={newValue}
-            onChange={(event) => setNewValue(event.target.value)}
-            placeholder="value…"
-            aria-label="New attribute value"
-            autoComplete="off"
-            className="h-7 font-mono text-xs"
-            onKeyDown={(event) => (event.key === "Enter" ? add() : undefined)}
-          />
-          <Button variant="outline" size="icon-xs" aria-label="Add attribute" onClick={add}>
-            <PlusIcon />
-          </Button>
-        </div>
-        {violation ? <FieldError>{`${newKey.trim() === "" ? "key" : newKey.trim()} ${violation}`}</FieldError> : null}
-      </FormField>
+      <form onSubmit={add}>
+        <FormField data-invalid={violation !== undefined || undefined} className="gap-1 border-t pt-2">
+          <div className="flex items-center gap-1">
+            <Controller
+              name="key"
+              control={form.control}
+              render={({ field }) => (
+                <Input
+                  {...field}
+                  onChange={(event) => field.onChange(event.target.value.toLowerCase())}
+                  placeholder="key…"
+                  aria-label="New attribute key"
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-invalid={violation !== undefined}
+                  className="h-7 w-24 shrink-0 font-mono text-xs"
+                />
+              )}
+            />
+            <Controller
+              name="value"
+              control={form.control}
+              render={({ field }) => (
+                <Input
+                  {...field}
+                  placeholder="value…"
+                  aria-label="New attribute value"
+                  autoComplete="off"
+                  aria-invalid={violation !== undefined}
+                  className="h-7 font-mono text-xs"
+                />
+              )}
+            />
+            <Button type="submit" variant="outline" size="icon-xs" aria-label="Add attribute">
+              <PlusIcon />
+            </Button>
+          </div>
+          {violation ? <FieldError>{`${named === "" ? "key" : named} ${violation.message ?? ""}`}</FieldError> : null}
+        </FormField>
+      </form>
     </div>
   )
 }

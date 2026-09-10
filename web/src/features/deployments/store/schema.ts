@@ -4,26 +4,54 @@ export const STATUSES = ["active", "failed", "stopped"] as const
 export const TYPES = ["web_service", "worker", "cron_job"] as const
 export const ENVIRONMENTS = ["production", "staging", "development"] as const
 
-export const ATTRIBUTE_KEY_RULE = /^[a-z0-9_-]{1,64}$/u
-export const ATTRIBUTE_VALUE_MAX = 512
+const ATTRIBUTE_KEY_RULE = /^[a-z0-9_-]{1,64}$/u
+const ATTRIBUTE_VALUE_MAX = 512
 
-const attributeValue = z.string().min(1).max(ATTRIBUTE_VALUE_MAX)
+const attributeKey = z
+  .string()
+  .regex(ATTRIBUTE_KEY_RULE, "must be 1 to 64 characters of a-z, 0-9, underscore or hyphen")
+
+const attributeValue = z
+  .string()
+  .min(1, "must not be blank")
+  .max(ATTRIBUTE_VALUE_MAX, `must be at most ${ATTRIBUTE_VALUE_MAX} characters`)
+
+const valueSchemas: Record<string, z.ZodType<string, string>> = {
+  oncall: attributeValue.pipe(z.email("must be an email address")),
+}
+
+const valueSchemaFor = (key: string): z.ZodType<string, string> => valueSchemas[key] ?? attributeValue
+
+export const attributeValueSchema = (key: string) => z.string().trim().pipe(valueSchemaFor(key))
+
+export const attributeEntrySchema = z
+  .object({ key: z.string().trim().toLowerCase().pipe(attributeKey), value: z.string() })
+  .check((context) => {
+    const checked = attributeValueSchema(context.value.key).safeParse(context.value.value)
+    if (checked.success) return
+    for (const issue of checked.error.issues)
+      context.issues.push({ code: "custom", input: context.value.value, path: ["value"], message: issue.message })
+  })
+
+export const REQUIRED_ATTRIBUTE_KEYS: ReadonlySet<string> = new Set(["name"])
+
+const attributeShape = {
+  name: attributeValue,
+  description: attributeValue.optional(),
+  team: attributeValue.optional(),
+  region: attributeValue.optional(),
+  language: attributeValue.optional(),
+  framework: attributeValue.optional(),
+  priority: attributeValue.optional(),
+  oncall: valueSchemaFor("oncall").optional(),
+}
 
 const attributesSchema = z
-  .object({
-    name: attributeValue,
-    description: attributeValue.optional(),
-    team: attributeValue.optional(),
-    region: attributeValue.optional(),
-    language: attributeValue.optional(),
-    framework: attributeValue.optional(),
-    priority: attributeValue.optional(),
-    oncall: z.email().optional(),
-  })
+  .object(attributeShape)
   .catchall(attributeValue)
   .check((context) => {
     for (const key of Object.keys(context.value)) {
-      if (ATTRIBUTE_KEY_RULE.test(key)) continue
+      if (attributeKey.safeParse(key).success) continue
       context.issues.push({ code: "custom", input: key, path: [key], message: `attribute key ${key} is not allowed` })
     }
   })
