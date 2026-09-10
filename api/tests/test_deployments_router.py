@@ -153,6 +153,48 @@ async def test_rejects_a_tiebreaker_without_a_timestamp(client: AsyncClient) -> 
     assert "updated_after" in response.json()["detail"]
 
 
+async def test_rejects_a_checkpoint_without_timezone(client: AsyncClient) -> None:
+    response = await client.get(
+        "/v1/deployments",
+        params={
+            "updated_after": "2026-09-10T12:00:00",
+            "after_id": "00000000-0000-4000-8000-000000000001",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/problem+json")
+    assert response.json()["errors"][0]["loc"] == ["query", "updated_after"]
+
+
+@pytest.mark.parametrize(
+    "updated_after", ["2026-09-10T12:00:00Z", "2026-09-10T12:00:00+02:00"]
+)
+async def test_accepts_a_checkpoint_carrying_an_offset(
+    client: AsyncClient, updated_after: str
+) -> None:
+    response = await client.get(
+        "/v1/deployments",
+        params={
+            "updated_after": updated_after,
+            "after_id": "00000000-0000-4000-8000-000000000001",
+        },
+    )
+
+    assert response.status_code == 200
+
+
+async def test_reads_a_timestamp_without_a_tiebreaker_as_no_checkpoint(
+    client: AsyncClient, rows: list[Deployment]
+) -> None:
+    response = await client.get(
+        "/v1/deployments", params={"updated_after": "2026-09-10T12:00:00Z"}
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()["items"]) == len(rows)
+
+
 @pytest.fixture
 async def deleted_row() -> Deployment:
     row = deployment(99, uuid4())

@@ -1,5 +1,4 @@
 from collections.abc import AsyncGenerator
-from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -16,6 +15,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import JSONResponse
+from pydantic import AwareDatetime
 from sse_starlette import EventSourceResponse
 
 from app.deployments.change_feed import ChangeFeed
@@ -70,7 +70,7 @@ def get_settings(request: Request) -> Settings:
 
 def get_checkpoint(
     updated_after: Annotated[
-        datetime | None, Query(description="Checkpoint timestamp to resume after")
+        AwareDatetime | None, Query(description="Checkpoint timestamp to resume after")
     ] = None,
     after_id: Annotated[
         UUID | None, Query(description="Checkpoint tiebreaker on equal timestamps")
