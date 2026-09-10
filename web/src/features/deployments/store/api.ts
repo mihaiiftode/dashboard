@@ -1,4 +1,5 @@
 import { ApiError, requestJson, requestVoid, type Fetcher } from "@/lib/api/http"
+import { z } from "zod"
 import {
   changeEventSchema,
   deploymentPageSchema,
@@ -32,10 +33,12 @@ export type ReplaceOutcome = {
 export type ChangeListeners = {
   onEvent: (event: ChangeEvent) => void
   onOpen: () => void
+  onResync: () => void
   onError: () => void
 }
 
 export type DeploymentsApi = {
+  missingIds: (ids: string[]) => Promise<string[]>
   list: (request: ListRequest) => Promise<DeploymentPage>
   get: (id: string) => Promise<Deployment>
   replace: (request: ReplaceRequest) => Promise<ReplaceOutcome>
@@ -45,6 +48,12 @@ export type DeploymentsApi = {
 }
 
 export const createFetchDeploymentsApi = (baseUrl: string, fetcher: Fetcher = globalThis.fetch): DeploymentsApi => ({
+  missingIds: (ids) =>
+    requestJson(fetcher, new URL("/v1/deployments/reconcile", baseUrl).toString(), z.array(z.uuid()), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(ids),
+    }),
   list: ({ after, limit }) => requestJson(fetcher, listUrl(baseUrl, after, limit), deploymentPageSchema),
   get: (id) => requestJson(fetcher, oneUrl(baseUrl, id), deploymentSchema),
   remove: (id) => requestVoid(fetcher, oneUrl(baseUrl, id), { method: "DELETE" }),
@@ -69,13 +78,15 @@ export const createFetchDeploymentsApi = (baseUrl: string, fetcher: Fetcher = gl
 
 const subscribeWithEventSource =
   (baseUrl: string) =>
-  ({ onEvent, onOpen, onError }: ChangeListeners) => {
+  ({ onEvent, onOpen, onResync, onError }: ChangeListeners) => {
     const source = new EventSource(eventsUrl(baseUrl))
     source.addEventListener("open", () => onOpen())
     source.addEventListener("error", () => onError())
+    source.addEventListener("resync", () => onResync())
     source.addEventListener("message", (message: MessageEvent<string>) => {
       const parsed = changeEventSchema.safeParse(readFrame(message.data))
       if (parsed.success) onEvent(parsed.data)
+      else onResync()
     })
     return () => source.close()
   }

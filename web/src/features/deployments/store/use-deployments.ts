@@ -11,6 +11,7 @@ import type { FieldCatalog } from "../query/fields"
 import type { WriteConflict } from "./conflict"
 import type { WriteRejection } from "./sync-tracker"
 import { useDeploymentsCollection } from "./store-context"
+import { useRetentionCutoff } from "./use-retention-cutoff"
 import { useSyncStatus } from "./use-sync-status"
 import { REQUIRED_ATTRIBUTE_KEYS, type Deployment } from "./schema"
 
@@ -33,8 +34,10 @@ export const useAllDeployments = (): Deployment[] => {
 
 export const useMatchedDeployments = (plan: QueryPlan, sort: Sorting, catalog: FieldCatalog): Deployment[] => {
   const collection = useDeploymentsCollection()
+  const cutoff = useRetentionCutoff(useAllDeployments())
   const { data } = useLiveQuery({
-    query: (query) => compileQuery(query.from({ deployment: collection }), plan, sort, catalog),
+    queryKey: ["matched-deployments", collection.id, plan, sort, catalog.attributeKeys, cutoff],
+    query: (query) => compileQuery(query.from({ deployment: collection }), plan, sort, catalog, cutoff),
   })
   return data
 }

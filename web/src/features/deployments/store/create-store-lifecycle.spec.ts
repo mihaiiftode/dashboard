@@ -51,11 +51,6 @@ const storeWith = async (api: ReturnType<typeof createFakeDeploymentsApi>) => {
   return store
 }
 
-const afterPushSettles = () =>
-  new Promise<void>((resolve) => {
-    setTimeout(resolve, 150)
-  })
-
 describe("write failure classification", () => {
   it("reports a validation refusal as a rejection", async () => {
     const rows = deployments(1)
@@ -81,8 +76,9 @@ describe("write failure classification", () => {
       draft.attributes.name = "renamed"
     })
 
-    await afterPushSettles()
+    await vi.waitFor(() => expect(store.sync.snapshot().connection).toBe("reconnecting"))
     expect(store.sync.snapshot().rejection).toBeNull()
+    expect(store.sync.snapshot().pendingIds.has(rows[0].deployment_id)).toBe(true)
     await store.destroy()
   })
 })

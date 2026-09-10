@@ -34,6 +34,7 @@ export const createFakeDeploymentsApi = (initial: Deployment[] = []): FakeDeploy
   let writeFailure: { status: number; detail: string } | null = null
   const listeners = new Set<ChangeListeners>()
   return {
+    missingIds: (ids) => Promise.resolve(ids.filter((id) => !rows.some((row) => row.deployment_id === id))),
     requests,
     writes,
     replaceAll: (next) => {
@@ -54,7 +55,14 @@ export const createFakeDeploymentsApi = (initial: Deployment[] = []): FakeDeploy
     emit: (documents) => {
       const last = documents.at(-1)
       if (!last) return
-      for (const document of documents) put(document)
+      for (const document of documents) {
+        const previous = rows.find((row) => row.deployment_id === document.deployment_id)
+        put(
+          previous && previous.revision !== document.revision && document.updated_at <= previous.updated_at
+            ? { ...document, updated_at: nextStamp(rows) }
+            : document,
+        )
+      }
       for (const listener of listeners) {
         listener.onEvent({
           documents,

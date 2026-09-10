@@ -1,19 +1,4 @@
-import {
-  and,
-  coalesce,
-  concat,
-  count,
-  gt,
-  gte,
-  ilike,
-  isNull,
-  lt,
-  not,
-  or,
-  type QueryBuilder,
-  type RefsForContext,
-} from "@tanstack/react-db"
-import { subDays } from "date-fns"
+import { coalesce, concat, count, ilike, isNull, not, type QueryBuilder, type RefsForContext } from "@tanstack/react-db"
 import { RETENTION_DAYS } from "@/lib/format"
 import type { Deployment } from "../store/schema"
 import { FilterKind, FilterOperator, type Filter, type QueryPlan } from "./filters"
@@ -29,45 +14,78 @@ type DeploymentContext = {
 type DeploymentQuery = QueryBuilder<DeploymentContext>
 type DeploymentRefs = RefsForContext<DeploymentContext>["deployment"]
 type Expression = ReturnType<typeof isNull>
+const DAY_MS = 86_400_000
 
-export const compileQuery = (source: DeploymentQuery, query: QueryPlan, sort: Sorting, catalog: FieldCatalog) => {
-  const filtered = compileFilters(source, query, catalog)
+export const retentionCutoff = (now = Date.now()): number => now - RETENTION_DAYS * DAY_MS
+
+export const compileQuery = (
+  source: DeploymentQuery,
+  query: QueryPlan,
+  sort: Sorting,
+  catalog: FieldCatalog,
+  cutoff = retentionCutoff(),
+) => {
+  const filtered = compileFilters(source, query, catalog, cutoff)
   const field = resolveKey(catalog, sort.key)
   return field
     ? filtered.orderBy(({ deployment }) => fieldReference(deployment, field), sort.desc ? "desc" : "asc")
     : filtered
 }
 
-export const compileValueIndex = (source: DeploymentQuery, field: Field, query: QueryPlan, catalog: FieldCatalog) =>
-  compileFilters(source, query, catalog)
+export const compileValueIndex = (
+  source: DeploymentQuery,
+  field: Field,
+  query: QueryPlan,
+  catalog: FieldCatalog,
+  cutoff = retentionCutoff(),
+) =>
+  compileFilters(source, query, catalog, cutoff)
     .groupBy(({ deployment }) => fieldReference(deployment, field))
     .select(({ deployment }) => ({
       value: fieldReference(deployment, field),
       rows: count(deployment.deployment_id),
     }))
 
-export const compileScopeCounts = (source: DeploymentQuery) =>
-  withinRetention(source)
+export const compileScopeCounts = (source: DeploymentQuery, cutoff = retentionCutoff()) =>
+  withinRetention(source, cutoff)
     .groupBy(({ deployment }) => isNull(deployment.deleted_at))
     .select(({ deployment }) => ({
       live: isNull(deployment.deleted_at),
       rows: count(deployment.deployment_id),
     }))
 
-const withinRetention = (source: DeploymentQuery): DeploymentQuery => {
-  const cutoff = subDays(Date.now(), RETENTION_DAYS).toISOString()
-  return source.where(({ deployment }) => or(isNull(deployment.deleted_at), gt(deployment.deleted_at, cutoff)))
-}
+const withinRetention = (source: DeploymentQuery, cutoff: number): DeploymentQuery =>
+  source.fn.where(({ deployment }) => deployment.deleted_at === null || Date.parse(deployment.deleted_at) > cutoff)
 
-const compileFilters = (source: DeploymentQuery, query: QueryPlan, catalog: FieldCatalog): DeploymentQuery => {
-  let filtered = withinRetention(source).where(({ deployment }) => {
+const compileFilters = (
+  source: DeploymentQuery,
+  query: QueryPlan,
+  catalog: FieldCatalog,
+  cutoff: number,
+): DeploymentQuery => {
+  let filtered = withinRetention(source, cutoff).where(({ deployment }) => {
     const live = isNull(deployment.deleted_at)
     return query.scope === "deleted" ? not(live) : live
   })
   for (const filter of query.filters) {
-    filtered = filtered.where(({ deployment }) => compileFilter(deployment, filter, catalog))
+    filtered = hasDateFilter(filter)
+      ? filtered.fn.where(({ deployment }) => matchDateFilter(deployment, filter))
+      : filtered.where(({ deployment }) => compileFilter(deployment, filter, catalog))
   }
   return filtered
+}
+
+const hasDateFilter = (filter: Filter): boolean =>
+  filter.kind === FilterKind.Date || (filter.kind === FilterKind.Not && hasDateFilter(filter.operand))
+
+const matchDateFilter = (row: Deployment, filter: Filter): boolean => {
+  if (filter.kind === FilterKind.Not) return !matchDateFilter(row, filter.operand)
+  if (filter.kind !== FilterKind.Date) return true
+  const target = Date.parse(fieldValue(row, filter.field))
+  if (filter.from === null) return target < Date.parse(filter.to)
+  return filter.to === null
+    ? target >= Date.parse(filter.from)
+    : target >= Date.parse(filter.from) && target < Date.parse(filter.to)
 }
 
 const compileFilter = (row: DeploymentRefs, filter: Filter, catalog: FieldCatalog): Expression => {
@@ -87,11 +105,8 @@ const compileFilter = (row: DeploymentRefs, filter: Filter, catalog: FieldCatalo
     }
     case FilterKind.Field:
       return matchString(fieldReference(row, filter.field), filter.value, filter.operator)
-    case FilterKind.Date: {
-      const target = fieldReference(row, filter.field)
-      if (filter.from === null) return lt(target, filter.to)
-      return filter.to === null ? gte(target, filter.from) : and(gte(target, filter.from), lt(target, filter.to))
-    }
+    case FilterKind.Date:
+      throw new Error("date filters require functional comparison")
   }
 }
 
@@ -112,3 +127,6 @@ const globPattern = (value: string): string => escapeLike(value).replaceAll("*",
 
 const fieldReference = (row: DeploymentRefs, field: Field) =>
   field.attribute ? row.attributes[field.key] : row[field.column]
+
+const fieldValue = (row: Deployment, field: Field): string =>
+  field.attribute ? (row.attributes[field.key] ?? "") : String(row[field.column] ?? "")

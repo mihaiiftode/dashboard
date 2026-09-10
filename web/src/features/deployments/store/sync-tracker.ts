@@ -1,4 +1,4 @@
-import type { WriteConflict } from "./conflict"
+import { differencesBetween, type WriteConflict } from "./conflict"
 import type { Deployment } from "./schema"
 
 type ConnectionState = "connecting" | "live" | "reconnecting" | "offline"
@@ -19,7 +19,8 @@ export type SyncStatus = {
 
 export type SyncTracker = SyncStatus & {
   began: (deploymentId: string) => void
-  settled: (deploymentId: string) => void
+  queued: (deployment: Deployment) => void
+  settled: (deploymentId: string, attempted?: Deployment) => boolean
   conflicted: (conflict: WriteConflict) => void
   rejected: (rejection: WriteRejection) => void
   connectionChanged: (connection: ConnectionState) => void
@@ -27,6 +28,7 @@ export type SyncTracker = SyncStatus & {
 
 export const createSyncTracker = (): SyncTracker => {
   const pending = new Set<string>()
+  const queued = new Map<string, Deployment>()
   const listeners = new Set<() => void>()
   let snapshot: SyncSnapshot = {
     pendingIds: new Set(),
@@ -50,9 +52,23 @@ export const createSyncTracker = (): SyncTracker => {
       pending.add(deploymentId)
       publish({})
     },
-    settled: (deploymentId) => {
+    queued: (deployment) => {
+      queued.set(deployment.deployment_id, deployment)
+      pending.add(deployment.deployment_id)
+      publish({})
+    },
+    settled: (deploymentId, attempted) => {
+      const latest = queued.get(deploymentId)
+      if (
+        latest &&
+        attempted &&
+        (latest.deleted_at !== attempted.deleted_at || differencesBetween(latest, attempted).length > 0)
+      )
+        return false
+      queued.delete(deploymentId)
       pending.delete(deploymentId)
       publish({})
+      return true
     },
     conflicted: (conflict) => publish({ conflict }),
     rejected: (rejection) => publish({ rejection }),

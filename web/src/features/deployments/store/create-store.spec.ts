@@ -28,13 +28,6 @@ const idsIn = (current: DeploymentsStore) => [...current.collection.values()].ma
 const rowIn = (current: DeploymentsStore, id: string) =>
   [...current.collection.values()].find((row) => row.deployment_id === id)
 
-const settle = async (current: DeploymentsStore) => {
-  await vi.waitFor(() => expect(current.sync.snapshot().pendingIds.size).toBe(0))
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, 20)
-  })
-}
-
 afterEach(async () => {
   await store?.destroy()
   store = null
@@ -106,8 +99,7 @@ describe("createDeploymentsStore", () => {
     current.collection.update(rows[0].deployment_id, (draft) => {
       draft.attributes.name = "renamed"
     })
-    await settle(current)
-
+    await vi.waitFor(() => expect(api.rowFor(rows[0].deployment_id)?.attributes.name).toBe("renamed"))
     expect(api.writes).toHaveLength(1)
     expect(api.writes[0]).toMatchObject({ id: rows[0].deployment_id, expectedRevision: 1 })
     expect(api.rowFor(rows[0].deployment_id)?.attributes.name).toBe("renamed")
@@ -120,9 +112,7 @@ describe("createDeploymentsStore", () => {
     current.collection.update(rows[0].deployment_id, (draft) => {
       draft.attributes.name = "renamed"
     })
-    await settle(current)
-
-    expect(rowIn(current, rows[0].deployment_id)?.revision).toBe(2)
+    await vi.waitFor(() => expect(rowIn(current, rows[0].deployment_id)?.revision).toBe(2))
   })
 
   it("reverts to the winning document when someone else wrote first", async () => {
@@ -133,9 +123,7 @@ describe("createDeploymentsStore", () => {
     current.collection.update(rows[0].deployment_id, (draft) => {
       draft.attributes.name = "mine"
     })
-    await settle(current)
-
-    expect(rowIn(current, rows[0].deployment_id)?.attributes.name).toBe("theirs")
+    await vi.waitFor(() => expect(rowIn(current, rows[0].deployment_id)?.attributes.name).toBe("theirs"))
   })
 
   it("exposes the losing field so the view can explain the revert", async () => {
@@ -146,11 +134,11 @@ describe("createDeploymentsStore", () => {
     current.collection.update(rows[0].deployment_id, (draft) => {
       draft.attributes.name = "mine"
     })
-    await settle(current)
-
-    expect(current.sync.snapshot().conflict?.differences).toEqual([
-      { key: "name", attempted: "mine", winning: "theirs" },
-    ])
+    await vi.waitFor(() =>
+      expect(current.sync.snapshot().conflict?.differences).toEqual([
+        { key: "name", attempted: "mine", winning: "theirs" },
+      ]),
+    )
   })
 
   it("leaves nothing pending once a write settles", async () => {
@@ -160,9 +148,8 @@ describe("createDeploymentsStore", () => {
     current.collection.update(rows[0].deployment_id, (draft) => {
       draft.attributes.name = "renamed"
     })
-    await settle(current)
-
-    expect([...current.sync.snapshot().pendingIds]).toEqual([])
+    await vi.waitFor(() => expect(rowIn(current, rows[0].deployment_id)?.revision).toBe(2))
+    await vi.waitFor(() => expect([...current.sync.snapshot().pendingIds]).toEqual([]))
   })
 
   it("applies a change that arrives on the stream", async () => {
@@ -170,9 +157,7 @@ describe("createDeploymentsStore", () => {
     const { api, store: current } = await storeOver(rows)
 
     api.emit([{ ...rows[0], attributes: { ...rows[0].attributes, name: "from-elsewhere" }, revision: 4 }])
-    await settle(current)
-
-    expect(rowIn(current, rows[0].deployment_id)?.attributes.name).toBe("from-elsewhere")
+    await vi.waitFor(() => expect(rowIn(current, rows[0].deployment_id)?.attributes.name).toBe("from-elsewhere"))
     expect(rowIn(current, rows[0].deployment_id)?.revision).toBe(4)
   })
 
@@ -182,9 +167,7 @@ describe("createDeploymentsStore", () => {
     const arrival = deployment(50)
 
     api.emit([arrival])
-    await settle(current)
-
-    expect(idsIn(current)).toContain(arrival.deployment_id)
+    await vi.waitFor(() => expect(idsIn(current)).toContain(arrival.deployment_id))
   })
 
   it("catches up from its checkpoint after the connection drops", async () => {
@@ -195,8 +178,7 @@ describe("createDeploymentsStore", () => {
     const requestsBeforeDrop = api.requests.length
 
     api.drop()
-    await settle(current)
-
+    await vi.waitFor(() => expect(idsIn(current)).toContain(missed.deployment_id))
     expect(api.requests.length).toBeGreaterThan(requestsBeforeDrop)
     expect(idsIn(current)).toContain(missed.deployment_id)
   })
@@ -217,13 +199,11 @@ describe("createDeploymentsStore", () => {
     current.collection.update(rows[0].deployment_id, (draft) => {
       draft.attributes.name = "mine"
     })
-    await settle(current)
+    await vi.waitFor(() => expect(rowIn(current, rows[0].deployment_id)?.revision).toBe(2))
     const afterWrite = rowIn(current, rows[0].deployment_id)
 
     api.emit([api.rowFor(rows[0].deployment_id) as Deployment])
-    await settle(current)
-
-    expect(rowIn(current, rows[0].deployment_id)).toEqual(afterWrite)
+    await vi.waitFor(() => expect(rowIn(current, rows[0].deployment_id)).toEqual(afterWrite))
     expect(api.writes).toHaveLength(1)
   })
 
@@ -247,9 +227,7 @@ describe("createDeploymentsStore", () => {
     current.collection.update(rows[0].deployment_id, (draft) => {
       draft.attributes.name = "renamed"
     })
-    await settle(current)
-
-    expect(rowIn(current, rows[0].deployment_id)?.attributes.name).toBe(rows[0].attributes.name)
+    await vi.waitFor(() => expect(rowIn(current, rows[0].deployment_id)?.attributes.name).toBe(rows[0].attributes.name))
     expect(current.sync.snapshot().rejection?.detail).toContain("must be an email address")
     expect(current.sync.snapshot().conflict).toBeNull()
   })
@@ -261,9 +239,7 @@ describe("createDeploymentsStore", () => {
     current.collection.update(rows[0].deployment_id, (draft) => {
       draft.deleted_at = new Date().toISOString()
     })
-    await settle(current)
-
-    expect(api.rowFor(rows[0].deployment_id)?.deleted_at).not.toBeNull()
+    await vi.waitFor(() => expect(api.rowFor(rows[0].deployment_id)?.deleted_at).not.toBeNull())
     expect(api.writes).toHaveLength(0)
   })
 
@@ -275,9 +251,7 @@ describe("createDeploymentsStore", () => {
     current.collection.update(gone.deployment_id, (draft) => {
       draft.deleted_at = null
     })
-    await settle(current)
-
-    expect(api.rowFor(gone.deployment_id)?.deleted_at).toBeNull()
+    await vi.waitFor(() => expect(api.rowFor(gone.deployment_id)?.deleted_at).toBeNull())
   })
 
   it("takes a deletion that arrives on the stream", async () => {
@@ -285,9 +259,7 @@ describe("createDeploymentsStore", () => {
     const { api, store: current } = await storeOver(rows)
 
     api.emit([{ ...rows[0], deleted_at: deletedDaysAgo(), revision: 5 }])
-    await settle(current)
-
-    expect(rowIn(current, rows[0].deployment_id)?.deleted_at).not.toBeNull()
+    await vi.waitFor(() => expect(rowIn(current, rows[0].deployment_id)?.deleted_at).not.toBeNull())
   })
 
   it("takes a restore that arrives on the stream", async () => {
@@ -296,8 +268,6 @@ describe("createDeploymentsStore", () => {
     const { api, store: current } = await storeOver([rows[0], gone])
 
     api.emit([{ ...gone, deleted_at: null, revision: 6 }])
-    await settle(current)
-
-    expect(rowIn(current, gone.deployment_id)?.deleted_at).toBeNull()
+    await vi.waitFor(() => expect(rowIn(current, gone.deployment_id)?.deleted_at).toBeNull())
   })
 })

@@ -36,17 +36,39 @@ afterEach(() => {
 
 const listen = () => {
   const onEvent = vi.fn<(event: unknown) => void>()
+  let recoveryNeeded = false
+  const onError = vi.fn<() => void>()
   const unsubscribe = createFetchDeploymentsApi("http://api", globalThis.fetch).subscribe({
     onEvent,
     onOpen: vi.fn<() => void>(),
-    onError: vi.fn<() => void>(),
+    onResync: () => {
+      recoveryNeeded = true
+    },
+    onError,
   })
   const source = FakeEventSource.last
   if (!source) throw new Error("no EventSource opened")
-  return { onEvent, unsubscribe, source }
+  return { onEvent, onError, unsubscribe, source, recoveryNeeded: () => recoveryNeeded }
 }
 
 describe("the change stream contract", () => {
+  it.each(["{not json", '{"documents":"nope"}'])("requests recovery for an unusable frame: %s", (frame) => {
+    const listener = listen()
+    listener.source.deliver(frame)
+    expect(listener.recoveryNeeded()).toBe(true)
+  })
+
+  it("requests recovery when the server signals overflow", () => {
+    const listener = listen()
+    listener.source.listeners.get("resync")?.({ data: "{}" } as MessageEvent<string>)
+    expect(listener.recoveryNeeded()).toBe(true)
+  })
+
+  it("keeps the connection reported as live while recovering from overflow", () => {
+    const listener = listen()
+    listener.source.listeners.get("resync")?.({ data: "{}" } as MessageEvent<string>)
+    expect(listener.onError).not.toHaveBeenCalled()
+  })
   it("delivers a well formed change event", () => {
     const [row] = deployments(1)
     const { onEvent, source } = listen()
