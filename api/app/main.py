@@ -31,17 +31,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         client: AsyncMongoClient = AsyncMongoClient(
             settings.mongo_url, serverSelectionTimeoutMS=settings.mongo_timeout_ms
         )
-        deployments = MongoDeploymentRepository.from_client(
-            client, settings.database_name
-        )
-        await ensure_indexes(deployments)
-        changes = ChangeFeed()
-        app.state.settings = settings
-        app.state.change_feed = changes
-        app.state.health_check = HealthCheck(client)
-        app.state.deployment_service = DeploymentService(deployments, changes)
-        yield
-        await client.close()
+        try:
+            deployments = MongoDeploymentRepository.from_client(
+                client, settings.database_name
+            )
+            await ensure_indexes(deployments)
+            changes = ChangeFeed()
+            app.state.settings = settings
+            app.state.change_feed = changes
+            app.state.health_check = HealthCheck(client)
+            app.state.deployment_service = DeploymentService(deployments, changes)
+            yield
+        finally:
+            await client.close()
 
     app = FastAPI(title="Deployments API", lifespan=lifespan)
     app.add_middleware(

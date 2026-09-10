@@ -12,7 +12,7 @@ import {
 import { RxDBMigrationSchemaPlugin } from "rxdb/plugins/migration-schema"
 import { getRxStorageDexie } from "rxdb/plugins/storage-dexie"
 import { replicateRxCollection, type RxReplicationState } from "rxdb/plugins/replication"
-import { Subject } from "rxjs"
+import { Subject, type Subscription } from "rxjs"
 import { ApiError } from "@/lib/api/http"
 import { createLogger } from "@/lib/logger"
 import { PULL_BATCH_SIZE, type DeploymentsApi } from "./api"
@@ -47,56 +47,89 @@ export type StoreOptions = {
   pullBatchSize?: number
 }
 
+type Acquired = {
+  database?: RxDatabase
+  unsubscribe?: () => void
+  stream$?: Subject<PullStreamItem>
+  replication?: RxReplicationState<Deployment, Checkpoint | undefined>
+  failures?: Subscription
+  collection?: DeploymentsCollection
+}
+
+const release = async (acquired: Acquired): Promise<void> => {
+  const steps: [string, () => unknown][] = [
+    ["event stream", () => acquired.unsubscribe?.()],
+    ["replication errors", () => acquired.failures?.unsubscribe()],
+    ["pull stream", () => acquired.stream$?.complete()],
+    ["replication", () => acquired.replication?.cancel()],
+    ["collection", () => acquired.collection?.cleanup()],
+    ["database", () => acquired.database?.close()],
+  ]
+  for (const [name, step] of steps) {
+    try {
+      // eslint-disable-next-line no-await-in-loop -- teardown order is deliberate
+      await step()
+    } catch (error) {
+      log.warning("releasing the {name} failed: {message}", { name, message: String(error) })
+    }
+  }
+  for (const key of Object.keys(acquired)) delete acquired[key as keyof Acquired]
+}
+
 export const createDeploymentsStore = async ({
   api,
   databaseName = DATABASE_NAME,
   multiInstance = true,
   pullBatchSize = PULL_BATCH_SIZE,
 }: StoreOptions): Promise<DeploymentsStore> => {
-  const database: RxDatabase = await createRxDatabase({
-    name: databaseName,
-    storage: getRxStorageDexie(),
-    multiInstance,
-  })
-  const collections = await database.addCollections({
-    [COLLECTION_NAME]: { schema: rxdbDeploymentSchema(), migrationStrategies },
-  })
-  const rxCollection = collections[COLLECTION_NAME] as RxCollection<Deployment>
+  const acquired: Acquired = {}
   const tracker = createSyncTracker()
-  const stream$ = new Subject<PullStreamItem>()
-  const unsubscribe = api.subscribe({
-    onOpen: () => tracker.connectionChanged("live"),
-    onError: () => {
+  try {
+    const database: RxDatabase = await createRxDatabase({
+      name: databaseName,
+      storage: getRxStorageDexie(),
+      multiInstance,
+    })
+    acquired.database = database
+    const collections = await database.addCollections({
+      [COLLECTION_NAME]: { schema: rxdbDeploymentSchema(), migrationStrategies },
+    })
+    const rxCollection = collections[COLLECTION_NAME] as RxCollection<Deployment>
+    const stream$ = new Subject<PullStreamItem>()
+    acquired.stream$ = stream$
+    acquired.unsubscribe = api.subscribe({
+      onOpen: () => tracker.connectionChanged("live"),
+      onError: () => {
+        tracker.connectionChanged(navigator.onLine ? "reconnecting" : "offline")
+        stream$.next("RESYNC")
+      },
+      onEvent: (event) => {
+        log.debug("streamed {count} changes", { count: event.documents.length })
+        stream$.next({
+          documents: event.documents.map((document) => ({ ...document, _deleted: false })),
+          checkpoint: event.checkpoint,
+        })
+      },
+    })
+    const replication = replicate(rxCollection, api, pullBatchSize, tracker, stream$)
+    acquired.replication = replication
+    acquired.failures = replication.error$.subscribe((error) => {
+      log.warning("replication error: {message}", { message: String(error?.message ?? error) })
       tracker.connectionChanged(navigator.onLine ? "reconnecting" : "offline")
-      stream$.next("RESYNC")
-    },
-    onEvent: (event) => {
-      log.debug("streamed {count} changes", { count: event.documents.length })
-      stream$.next({
-        documents: event.documents.map((document) => ({ ...document, _deleted: false })),
-        checkpoint: event.checkpoint,
-      })
-    },
-  })
-  const replication = replicate(rxCollection, api, pullBatchSize, tracker, stream$)
-  const failures = replication.error$.subscribe((error) => {
-    log.warning("replication error: {message}", { message: String(error?.message ?? error) })
-    tracker.connectionChanged(navigator.onLine ? "reconnecting" : "offline")
-  })
-  const collection = createCollection(
-    rxdbCollectionOptions({ rxCollection, schema: deploymentSchema }),
-  ) as unknown as DeploymentsCollection
+    })
+    const collection = createCollection(
+      rxdbCollectionOptions({ rxCollection, schema: deploymentSchema }),
+    ) as unknown as DeploymentsCollection
+    acquired.collection = collection
 
-  return {
-    collection,
-    sync: { subscribe: tracker.subscribe, snapshot: tracker.snapshot },
-    destroy: async () => {
-      unsubscribe()
-      failures.unsubscribe()
-      stream$.complete()
-      await replication.cancel()
-      await database.close()
-    },
+    return {
+      collection,
+      sync: { subscribe: tracker.subscribe, snapshot: tracker.snapshot },
+      destroy: () => release(acquired),
+    }
+  } catch (error) {
+    await release(acquired)
+    throw error
   }
 }
 
