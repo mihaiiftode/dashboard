@@ -16,6 +16,7 @@ import { Subject, type Subscription } from "rxjs"
 import { createLogger } from "@/lib/logger"
 import { PULL_BATCH_SIZE, type DeploymentsApi } from "./api"
 import { COLLECTION_ID } from "./collection-id"
+import { PLANTED_COOKIE } from "./seed"
 import { migrationStrategies, rxdbDeploymentSchema } from "./rxdb-schema"
 import { deploymentSchema, type Checkpoint, type Deployment } from "./schema"
 import { createSyncTracker, type SyncStatus, type SyncTracker } from "./sync-tracker"
@@ -31,6 +32,7 @@ const COLLECTION_NAME = "deployments"
 const REPLICATION_IDENTIFIER = "deployments"
 const PUSH_BATCH_SIZE = 5
 const RECONCILE_EVERY_MS = 300_000
+const PLANTED_COOKIE_SECONDS = 2_592_000
 
 type DeploymentsCollection = Collection<Deployment, string, Record<string, never>>
 
@@ -160,6 +162,7 @@ const plant = async (
     return null
   }
   log.debug("planted {count} seeded deployments", { count: seed.rows.length })
+  document.cookie = `${PLANTED_COOKIE}=1; path=/; max-age=${PLANTED_COOKIE_SECONDS}; samesite=lax`
   return seed.checkpoint
 }
 

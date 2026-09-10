@@ -4,6 +4,8 @@ import { createFetchDeploymentsApi, SEED_PAGE_SIZE } from "./api"
 import { COLLECTION_ID } from "./collection-id"
 import type { Checkpoint, Deployment, DeploymentPage } from "./schema"
 
+export const PLANTED_COOKIE = "deployments-planted"
+
 export type DeploymentsSeed = {
   state: DehydratedDbState
   cutoff: number
