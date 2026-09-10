@@ -50,8 +50,9 @@ describe("parseQuery", () => {
 
     expect(parsed.clauses[0]).toMatchObject({
       text: "(status:failed)",
-      prefix: "(",
+      editText: "status:failed",
       span: { start: 0, end: 15 },
+      edit: { start: 1, end: 14 },
       field: { key: "status" },
       partial: "failed",
     })

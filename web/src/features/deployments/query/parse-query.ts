@@ -36,7 +36,8 @@ export type Span = { start: number; end: number }
 
 export type Clause = {
   span: Span
-  prefix: string
+  edit: Span
+  editText: string
   text: string
   key: string | null
   field: Field | null
@@ -111,9 +112,11 @@ const parseClause = (node: ParserAst, source: string, catalog: FieldCatalog): { 
   const comparison = tag?.operator?.operator ?? ":"
   const key = tag?.field.type === "Field" ? tag.field.name.toLowerCase() : null
   const literal = tag ? literalOf(tag) : null
+  const edit = tag?.location ?? node.location
   const clause: Clause = {
     span: node.location,
-    prefix: source.slice(node.location.start, tag?.location.start ?? node.location.start),
+    edit,
+    editText: source.slice(edit.start, edit.end),
     text: source.slice(node.location.start, node.location.end),
     key,
     field: key === null || key === SCOPE_KEY ? null : (resolveKey(catalog, key) ?? null),

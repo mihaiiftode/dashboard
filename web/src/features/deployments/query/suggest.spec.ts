@@ -147,3 +147,40 @@ describe("indexedFieldOf", () => {
     expect(indexedFieldOf(clauseAt(parseQuery("oncall:on", scoped), 9))?.key).toBe("oncall")
   })
 })
+
+describe("applying a suggestion", () => {
+  const applied = (query: string, pick: (label: string) => boolean, index?: ValueIndex) => {
+    const suggestions = suggest(
+      setOf(query),
+      query.length,
+      catalog,
+      context(index),
+      clauseAt(setOf(query), query.length),
+    )
+    const chosen = suggestions.items.find((item) => pick(item.label))
+    if (!chosen) throw new Error(`no suggestion matched in ${JSON.stringify(suggestions.items.map((i) => i.label))}`)
+    return replaceSpan(query, suggestions.span, chosen.insert).query
+  }
+
+  it("keeps the closing parenthesis around a completed filter", () => {
+    expect(applied("(status:fai)", (label) => label.includes("failed"), indexOf({ failed: 3 }))).toBe(
+      "(status:failed )",
+    )
+  })
+
+  it("keeps a wrapping NOT and its parenthesis", () => {
+    expect(applied("NOT (status:fai)", (label) => label.includes("failed"), indexOf({ failed: 3 }))).toBe(
+      "NOT (status:failed )",
+    )
+  })
+
+  it("does not double the negation when taking the match-anywhere item", () => {
+    expect(applied("-zzz", (label) => label.includes("zzz"))).toBe("-zzz")
+  })
+
+  it("preserves an exact comparator when completing its value", () => {
+    expect(applied("name:=service", (label) => label.includes("service-001"), indexOf({ "service-001": 1 }))).toBe(
+      'name:="service-001" ',
+    )
+  })
+})

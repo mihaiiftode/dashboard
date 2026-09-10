@@ -25,7 +25,7 @@ describe("clauseAt", () => {
     const clause = clauseAt(setOf("-status:fai"), 11)
 
     expect(clause?.span.start).toBe(0)
-    expect(clause?.prefix).toBe("-")
+    expect(clause?.edit.start).toBe(1)
   })
 })
 
@@ -46,12 +46,10 @@ describe("replaceSpan", () => {
     })
   })
 
-  it("reports the prefix a negated clause must keep when its value is replaced", () => {
+  it("keeps a negation outside the span a replaced value writes into", () => {
     const clause = clauseAt(setOf("-status:fai"), 11)
 
-    expect(replaceSpan("-status:fai", clause?.span ?? null, (clause?.prefix ?? "") + "status:failed").query).toBe(
-      "-status:failed",
-    )
+    expect(replaceSpan("-status:fai", clause?.edit ?? null, "status:failed").query).toBe("-status:failed")
   })
 })
 

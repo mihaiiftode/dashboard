@@ -43,19 +43,20 @@ export const suggest = (
   clause = clauseAt(query, caret),
 ): Suggestions => {
   if (query.diagnostics.some((issue) => issue.span === null)) return { span: null, items: [], preselect: false }
-  const items = itemsFor(clause, catalog, context).map((item) => prefixed(item, clause?.prefix ?? ""))
-  return { span: clause?.span ?? null, items, preselect: items.length > 0 && items[0].kind !== ANYWHERE }
+  const wrapper = clause ? query.source.slice(clause.span.start, clause.edit.start) : ""
+  const items = itemsFor(clause, catalog, context).map((item) => labelled(item, wrapper))
+  return { span: clause?.edit ?? null, items, preselect: items.length > 0 && items[0].kind !== ANYWHERE }
 }
 
-const prefixed = (item: Suggestion, prefix: string): Suggestion =>
-  prefix === "" ? item : { ...item, label: prefix + item.label, insert: prefix + item.insert }
+const labelled = (item: Suggestion, wrapper: string): Suggestion =>
+  wrapper === "" ? item : { ...item, label: wrapper + item.label }
 
 export const indexedFieldOf = (clause: Clause | null): Field | null =>
   clause?.field && INDEXED_KINDS.has(clause.field.kind) ? clause.field : null
 
 const itemsFor = (clause: Clause | null, catalog: FieldCatalog, context: SuggestContext): Suggestion[] => {
   if (clause === null) return keyItems("", "", catalog, context.attributeCounts)
-  if (clause.key === null) return keyItems(clause.partial, clause.text, catalog, context.attributeCounts)
+  if (clause.key === null) return keyItems(clause.partial, clause.editText, catalog, context.attributeCounts)
   if (clause.key === SCOPE_KEY) return scopeItems(clause, context)
   const field = resolveKey(catalog, clause.key)
   if (!field) return []
@@ -134,7 +135,7 @@ const valueItems = (clause: Clause, field: Field, index: ValueIndex): Suggestion
     kind: "value",
     label: `${field.key}:${quoteValue(entry.value)}`,
     count: entry.rows,
-    insert: insertOf(field, quoteValue(entry.value)),
+    insert: insertOf(field, quoteValue(entry.value), clause.comparator),
   }))
 
 const anywhereItem = (clause: Clause, field: Field, index: ValueIndex): Suggestion => ({
@@ -143,7 +144,7 @@ const anywhereItem = (clause: Clause, field: Field, index: ValueIndex): Suggesti
   label: `${field.key}:${clause.partial === "" ? "…" : quoteValue(clause.partial)}`,
   detail: "matches anywhere",
   count: coveredBy(index, clause.partial),
-  insert: clause.partial === "" ? `${field.key}:` : insertOf(field, quoteValue(clause.partial)),
+  insert: clause.partial === "" ? `${field.key}:` : insertOf(field, quoteValue(clause.partial), clause.comparator),
 })
 
-const insertOf = (field: Field, value: string): string => field.key + ":" + value + " "
+const insertOf = (field: Field, value: string, comparator: string): string => field.key + ":" + comparator + value + " "
