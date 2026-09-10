@@ -9,6 +9,7 @@ export type FieldIndexRowProps = {
   field: Field
   plan: QueryPlan
   catalog: FieldCatalog
+  cutoff: number
   search: string
   total: number
   visible: boolean
@@ -18,7 +19,7 @@ export type FieldIndexRowProps = {
   onFilter: (value: string) => void
 }
 
-export const FieldIndexRow = ({ field, plan, catalog, ...rest }: FieldIndexRowProps) => {
-  const index = useValueIndex(field, plan, catalog)
+export const FieldIndexRow = ({ field, plan, catalog, cutoff, ...rest }: FieldIndexRowProps) => {
+  const index = useValueIndex(field, plan, catalog, cutoff)
   return <FieldRow field={field} index={index} {...rest} />
 }

@@ -22,10 +22,11 @@ type QueryInput = {
   onQueryChange: QueryChange
   sort: Sorting
   catalog: FieldCatalog
+  cutoff: number
   attributeCounts: FieldStatistics["attributeCounts"]
 }
 
-export const useDeploymentQuery = ({ query, onQueryChange, sort, catalog, attributeCounts }: QueryInput) => {
+export const useDeploymentQuery = ({ query, onQueryChange, sort, catalog, cutoff, attributeCounts }: QueryInput) => {
   const [caret, setCaret] = useState(query.length)
   const appliedSource = useSettledValue(query, DATA_SETTLE_MS)
   const appliedDocument = useMemo(() => parseQuery(appliedSource, catalog), [appliedSource, catalog])
@@ -34,8 +35,8 @@ export const useDeploymentQuery = ({ query, onQueryChange, sort, catalog, attrib
     () => (query === appliedSource ? appliedDocument : parseQuery(query, catalog)),
     [query, appliedSource, appliedDocument, catalog],
   )
-  const matched = useMatchedDeployments(appliedPlan, sort, catalog)
-  const scope = useScopeCounts()
+  const matched = useMatchedDeployments(appliedPlan, sort, catalog, cutoff)
+  const scope = useScopeCounts(cutoff)
 
   const deferredCaret = useDeferredValue(caret)
   const activeClause = clauseAt(draft, deferredCaret)
@@ -44,7 +45,7 @@ export const useDeploymentQuery = ({ query, onQueryChange, sort, catalog, attrib
     () => (activeField ? withoutFieldFilter(appliedPlan, activeField) : appliedPlan),
     [appliedPlan, activeField],
   )
-  const index = useValueIndex(activeField, completionPlan, catalog)
+  const index = useValueIndex(activeField, completionPlan, catalog, cutoff)
   const suggestions = useMemo(
     () => suggest(draft, deferredCaret, catalog, { index, deletedRows: scope.deleted, attributeCounts }, activeClause),
     [draft, deferredCaret, catalog, index, scope.deleted, attributeCounts, activeClause],

@@ -77,6 +77,7 @@ const DeploymentsBrowser = (props: DeploymentsPageProps) => {
                 field={field}
                 plan={view.appliedPlan}
                 catalog={view.catalog}
+                cutoff={view.cutoff}
                 search={view.fieldSearchTerm}
                 total={view.matched.length}
                 visible={view.visible.has(field.key)}

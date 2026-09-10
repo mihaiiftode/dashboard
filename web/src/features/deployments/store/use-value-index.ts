@@ -7,14 +7,16 @@ import { compileScopeCounts, compileValueIndex } from "../query/compile"
 import type { Field, FieldCatalog } from "../query/fields"
 import { valueIndexOf, type ValueIndex } from "../query/value-index"
 import { useDeploymentsCollection } from "./store-context"
-import { useAllDeployments } from "./use-deployments"
-import { useRetentionCutoff } from "./use-retention-cutoff"
 
 export type ScopeCounts = { live: number; deleted: number }
 
-export const useValueIndex = (field: Field | null, plan: QueryPlan, catalog: FieldCatalog): ValueIndex => {
+export const useValueIndex = (
+  field: Field | null,
+  plan: QueryPlan,
+  catalog: FieldCatalog,
+  cutoff: number,
+): ValueIndex => {
   const collection = useDeploymentsCollection()
-  const cutoff = useRetentionCutoff(useAllDeployments())
   const { data } = useLiveQuery({
     queryKey: ["deployment-value-index", collection.id, field, plan, catalog.attributeKeys, cutoff],
     query: (query) =>
@@ -23,9 +25,8 @@ export const useValueIndex = (field: Field | null, plan: QueryPlan, catalog: Fie
   return useMemo(() => valueIndexOf(data ?? []), [data])
 }
 
-export const useScopeCounts = (): ScopeCounts => {
+export const useScopeCounts = (cutoff: number): ScopeCounts => {
   const collection = useDeploymentsCollection()
-  const cutoff = useRetentionCutoff(useAllDeployments())
   const { data } = useLiveQuery({
     queryKey: ["deployment-scope-counts", collection.id, cutoff],
     query: (query) => compileScopeCounts(query.from({ deployment: collection }), cutoff),

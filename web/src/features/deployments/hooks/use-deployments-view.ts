@@ -11,6 +11,7 @@ import type { RemovableQueryChip } from "../components/query-chips"
 import type { Sort } from "../components/table/deployments-table"
 import { useFooterCounts } from "./use-footer-counts"
 import { useAllDeployments, useDeploymentWrites } from "../store/use-deployments"
+import { useRetentionCutoff } from "../store/use-retention-cutoff"
 import { useSyncStatus } from "../store/use-sync-status"
 import { sortParser } from "../query/url"
 import { useDeploymentQuery, type QueryChange } from "./use-deployment-query"
@@ -38,11 +39,13 @@ export const useDeploymentsView = ({ query, onQueryChange, group, onGroupChange,
   const [fieldSearch, setFieldSearch] = useState("")
 
   const visible = useMemo(() => chosen ?? new Set(defaultColumns(catalog, statistics)), [chosen, catalog, statistics])
+  const cutoff = useRetentionCutoff(rows)
   const search = useDeploymentQuery({
     query,
     onQueryChange,
     sort,
     catalog,
+    cutoff,
     attributeCounts: statistics.attributeCounts,
   })
   const { matched, appliedPlan, scope } = search
@@ -106,6 +109,7 @@ export const useDeploymentsView = ({ query, onQueryChange, group, onGroupChange,
     rows,
     matched,
     catalog,
+    cutoff,
     columns,
     pendingIds: writes.pendingIds,
     fields,
