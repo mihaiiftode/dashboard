@@ -49,8 +49,7 @@ class DeploymentService:
         self._operations = asyncio.Lock()
 
     async def list_page(self, after: Checkpoint | None, limit: int) -> DeploymentPage:
-        async with self._operations:
-            found = await self._repository.list_page(after=after, limit=limit + 1)
+        found = await self._repository.list_page(after=after, limit=limit + 1)
         items = found[:limit]
         if len(found) <= limit:
             return DeploymentPage(items=items)
@@ -69,8 +68,7 @@ class DeploymentService:
         return found
 
     async def missing_ids(self, deployment_ids: list[UUID]) -> list[UUID]:
-        async with self._operations:
-            return await self._repository.missing_ids(deployment_ids)
+        return await self._repository.missing_ids(deployment_ids)
 
     async def replace(
         self, deployment_id: UUID, writable: Writable, if_revision: int | None
@@ -94,9 +92,7 @@ class DeploymentService:
                 "attributes": Attributes.checked(writable.attributes),
             },
         )
-        written = await self._repository.replace(
-            edited, if_revision=current.revision if if_revision is None else if_revision
-        )
+        written = await self._repository.replace(edited, if_revision=if_revision)
         if written is None:
             logger.warning("stale write rejected for deployment %s", deployment_id)
             raise StaleWrite(await self.get(deployment_id))

@@ -123,6 +123,24 @@ async def test_bumps_the_revision_on_every_write() -> None:
     assert (first.revision, second.revision) == (4, 5)
 
 
+async def test_a_write_without_if_match_reaches_the_store_unconditionally() -> None:
+    wanted = uuid4()
+    repository = repository_holding(deployment(wanted, revision=3))
+
+    await service_over(repository).replace(wanted, writable(), if_revision=None)
+
+    assert repository.replace.await_args.kwargs["if_revision"] is None
+
+
+async def test_a_write_with_if_match_carries_the_revision_the_client_named() -> None:
+    wanted = uuid4()
+    repository = repository_holding(deployment(wanted, revision=3))
+
+    await service_over(repository).replace(wanted, writable(), if_revision=3)
+
+    assert repository.replace.await_args.kwargs["if_revision"] == 3
+
+
 async def test_keeps_the_fields_a_client_cannot_write() -> None:
     wanted = uuid4()
     service = service_over(repository_holding(deployment(wanted)))
