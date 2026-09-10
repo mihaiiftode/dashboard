@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { must } from "@/test/must"
 import { deployments } from "@/test/deployments"
 import { parseQuery } from "./parse-query"
 import { clauseAt, replaceSpan, withoutClause, withValue } from "./query-edits"
@@ -31,9 +32,9 @@ describe("clauseAt", () => {
 
 describe("replaceSpan", () => {
   it("replaces the span and reports the new caret", () => {
-    const clause = clauseAt(setOf("status:fa"), 9)
+    const clause = must(clauseAt(setOf("status:fa"), 9), "a clause at the caret")
 
-    expect(replaceSpan("status:fa", clause?.span ?? null, "status:failed")).toEqual({
+    expect(replaceSpan("status:fa", clause.span, "status:failed")).toEqual({
       query: "status:failed",
       caret: 13,
     })
@@ -47,9 +48,9 @@ describe("replaceSpan", () => {
   })
 
   it("keeps a negation outside the span a replaced value writes into", () => {
-    const clause = clauseAt(setOf("-status:fai"), 11)
+    const clause = must(clauseAt(setOf("-status:fai"), 11), "a clause at the caret")
 
-    expect(replaceSpan("-status:fai", clause?.edit ?? null, "status:failed").query).toBe("-status:failed")
+    expect(replaceSpan("-status:fai", clause.edit, "status:failed").query).toBe("-status:failed")
   })
 })
 

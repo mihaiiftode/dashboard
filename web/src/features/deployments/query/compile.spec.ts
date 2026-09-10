@@ -54,7 +54,8 @@ describe("compileQuery", () => {
 
   it("intersects separate tokens", async () => {
     const both = rows
-      .filter((row) => row.status === "failed" && row.type === "worker")
+      .filter((row) => row.status === "failed")
+      .filter((row) => row.type === "worker")
       .map((row) => row.attributes.name)
     expect((await namesFor("status:failed type:worker", rows)).toSorted()).toEqual(both.toSorted())
   })

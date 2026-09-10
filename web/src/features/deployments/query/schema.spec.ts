@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { must } from "@/test/must"
 import { deployment } from "@/test/deployments"
 import { buildSchema } from "./schema"
 import { FIXED_FIELDS, RESERVED_KEYS, resolveKey } from "./fields"
@@ -8,15 +9,22 @@ const catalogOver = (attributes: Record<string, string>) =>
   buildSchema([deployment(1, { attributes: { name: "service-001", ...attributes } })]).catalog
 
 describe("buildSchema", () => {
-  it.each(["status", "id", "env", "is", "version", "creator", "created", "deleted", "type"])(
+  it.each(["status", "id", "env", "version", "creator", "created", "deleted", "type"])(
     "keeps the built-in field when an attribute named %s is already stored",
     (key) => {
       const catalog = catalogOver({ [key]: "custom" })
 
       expect(catalog.attributeKeys).not.toContain(key)
-      expect(resolveKey(catalog, key)?.attribute ?? false).toBe(false)
+      expect(must(resolveKey(catalog, key), `the ${key} field`).attribute).toBe(false)
     },
   )
+
+  it("catalogs no field for the scope key even when an attribute is named is", () => {
+    const catalog = catalogOver({ is: "custom" })
+
+    expect(catalog.attributeKeys).not.toContain("is")
+    expect(resolveKey(catalog, "is")).toBeUndefined()
+  })
 
   it.each(["environment", "created_by", "deployment_id"])(
     "keeps the aliased field when an attribute named %s is already stored",

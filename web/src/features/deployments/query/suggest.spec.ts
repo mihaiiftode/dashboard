@@ -5,6 +5,7 @@ import { buildSchema } from "./schema"
 import { EMPTY_VALUE_INDEX, valueIndexOf, type ValueIndex } from "./value-index"
 import { parseQuery } from "./parse-query"
 import { clauseAt, replaceSpan } from "./query-edits"
+import { must } from "@/test/must"
 
 afterEach(() => vi.useRealTimers())
 
@@ -118,7 +119,9 @@ describe("suggest", () => {
 
     const { span, items } = suggest(setOf(query), 17, catalog, context(indexOf({ payments: 4 })))
 
-    expect(query.slice(span?.start ?? 0, span?.end)).toBe("team:pay")
+    const replaced = must(span, "a replacement span")
+
+    expect(query.slice(replaced.start, replaced.end)).toBe("team:pay")
     expect(items.some((item) => item.insert.startsWith("team:"))).toBe(true)
   })
 })

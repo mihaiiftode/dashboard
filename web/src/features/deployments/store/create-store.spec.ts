@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { deletedDaysAgo, deployment, deployments } from "@/test/deployments"
 import { createFakeDeploymentsApi } from "./fake-api"
+import { must } from "@/test/must"
 import { createDeploymentsStore, type DeploymentsStore } from "./create-store"
 import type { Deployment } from "./schema"
 
@@ -56,8 +57,8 @@ describe("createDeploymentsStore", () => {
     const { api, store: current } = await storeOver(rows, 2)
 
     expect(idsIn(current)).toEqual(rows.map((row) => row.deployment_id).toSorted())
-    expect(api.requests.map((request) => request.after?.deployment_id ?? null)).toEqual([
-      null,
+    expect(api.requests[0].after).toBeNull()
+    expect(api.requests.slice(1).map((request) => must(request.after, "a checkpoint").deployment_id)).toEqual([
       rows[1].deployment_id,
       rows[3].deployment_id,
     ])

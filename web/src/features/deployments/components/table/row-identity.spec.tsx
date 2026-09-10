@@ -3,6 +3,7 @@ import { waitFor, within } from "@testing-library/react"
 import { deployment } from "@/test/deployments"
 import { columnHeader, findTable, renderDeploymentsPage, table } from "@/test/deployments-page"
 import { setupUser } from "@/test/user"
+import { must } from "@/test/must"
 
 const rowFor = (name: string) => within(table()).getByText(name).closest("[data-slot='table-row']")
 
@@ -27,8 +28,7 @@ describe("row identity", () => {
     const alphaBefore = rowFor("alpha")
     expect(namesInOrder()).toEqual(["alpha", "bravo", "charlie"])
 
-    const header = columnHeader("name")
-    if (!header) throw new Error("Name column header not found")
+    const header = must(columnHeader("name"), "the name column header")
     await user.click(within(header).getByRole("button"))
     await waitFor(() => expect(namesInOrder()).toEqual(["charlie", "bravo", "alpha"]))
 
