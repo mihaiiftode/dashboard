@@ -1,5 +1,6 @@
 "use client"
 
+import { useId } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm } from "react-hook-form"
 import { PlusIcon, XIcon } from "lucide-react"
@@ -29,7 +30,7 @@ const AttributeRow = ({ keyName, value, removable, onCommit }: AttributeRowProps
   const commit = form.handleSubmit((entry) => {
     if (entry.value !== value) onCommit(entry.value)
   })
-  const id = `attr-${keyName}`
+  const id = `${useId()}-${keyName}`
   return (
     <form onSubmit={commit}>
       <Controller

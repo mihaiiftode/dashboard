@@ -94,3 +94,24 @@ describe("AttributesEditor", () => {
     expect(onCommit).not.toHaveBeenCalled()
   })
 })
+
+describe("multiple editors mounted together", () => {
+  it("gives each editor its own field identity", () => {
+    const first = deployment(1, { attributes: { team: "payments" } })
+    const second = deployment(2, { attributes: { team: "search" } })
+    render(
+      <>
+        <AttributesEditor deployment={first} keys={KEYS} onCommit={vi.fn<(key: string, value: string) => void>()} />
+        <AttributesEditor deployment={second} keys={KEYS} onCommit={vi.fn<(key: string, value: string) => void>()} />
+      </>,
+    )
+
+    const labelled = screen.getAllByLabelText("team")
+    const ids = labelled.map((field) => field.id)
+
+    expect(labelled).toHaveLength(2)
+    expect(new Set(ids).size).toBe(2)
+    expect((labelled[0] as HTMLInputElement).value).toBe("payments")
+    expect((labelled[1] as HTMLInputElement).value).toBe("search")
+  })
+})
