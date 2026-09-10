@@ -11,7 +11,7 @@ const seedOrEmpty = async (): Promise<DeploymentsSeed> => {
   try {
     return seedStateOf(await seedRows(SEED_ROWS), retentionCutoff())
   } catch {
-    return seedStateOf([], retentionCutoff())
+    return seedStateOf({ rows: [], checkpoint: null }, retentionCutoff())
   }
 }
 

@@ -40,11 +40,14 @@ export type DeploymentsStore = {
   destroy: () => Promise<void>
 }
 
+export type StoreSeed = { rows: readonly Deployment[]; checkpoint: Checkpoint | null }
+
 export type StoreOptions = {
   api: DeploymentsApi
   databaseName?: string
   multiInstance?: boolean
   pullBatchSize?: number
+  seed?: StoreSeed
 }
 
 type Acquired = {
@@ -81,6 +84,7 @@ export const createDeploymentsStore = async ({
   databaseName = DATABASE_NAME,
   multiInstance = true,
   pullBatchSize = PULL_BATCH_SIZE,
+  seed,
 }: StoreOptions): Promise<DeploymentsStore> => {
   const acquired: Acquired = {}
   const tracker = createSyncTracker()
@@ -95,10 +99,11 @@ export const createDeploymentsStore = async ({
       [COLLECTION_NAME]: { schema: rxdbDeploymentSchema(), migrationStrategies },
     })
     const rxCollection = collections[COLLECTION_NAME] as RxCollection<Deployment>
+    const planted = await plant(rxCollection, seed)
     const stream$ = new Subject<PullStreamItem>()
     acquired.stream$ = stream$
     const pulled: Pulled = { reconciledAt: 0, checkpoint: undefined }
-    const replication = replicate(rxCollection, api, pullBatchSize, tracker, stream$, pulled)
+    const replication = replicate(rxCollection, api, pullBatchSize, tracker, stream$, pulled, planted)
     acquired.replication = replication
     acquired.unsubscribe = api.subscribe({
       onOpen: () => {
@@ -143,6 +148,21 @@ export const createDeploymentsStore = async ({
   }
 }
 
+const plant = async (
+  rxCollection: RxCollection<Deployment>,
+  seed: StoreSeed | undefined,
+): Promise<Checkpoint | null> => {
+  if (!seed || seed.rows.length === 0) return null
+  if ((await rxCollection.count().exec()) > 0) return seed.checkpoint
+  const { error } = await rxCollection.bulkInsert([...seed.rows])
+  if (error.length > 0) {
+    log.warning("planting the seed left {count} rows unwritten", { count: error.length })
+    return null
+  }
+  log.debug("planted {count} seeded deployments", { count: seed.rows.length })
+  return seed.checkpoint
+}
+
 type PullStreamItem = RxReplicationPullStreamItem<Deployment, Checkpoint | undefined>
 
 type Pulled = { reconciledAt: number; checkpoint: Checkpoint | undefined }
@@ -154,6 +174,7 @@ const replicate = (
   tracker: SyncTracker,
   stream$: Subject<PullStreamItem>,
   pulled: Pulled,
+  planted: Checkpoint | null,
 ): RxReplicationState<Deployment, Checkpoint | undefined> => {
   const acknowledged = new Map<string, Deployment>()
   return replicateRxCollection<Deployment, Checkpoint | undefined>({
@@ -170,6 +191,7 @@ const replicate = (
     pull: {
       stream$: stream$.asObservable(),
       batchSize: pullBatchSize,
+      initialCheckpoint: planted ?? undefined,
       handler: async (lastCheckpoint, batchSize) => {
         const page = await api.list({ after: lastCheckpoint ?? null, limit: batchSize })
         let purged: WithDeleted<Deployment>[] = []

@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { env } from "@/lib/env"
 import { createLogger } from "@/lib/logger"
 import { createFetchDeploymentsApi, type DeploymentsApi } from "./api"
-import { createDeploymentsStore, type DeploymentsStore, type StoreOptions } from "./create-store"
+import { createDeploymentsStore, type DeploymentsStore, type StoreOptions, type StoreSeed } from "./create-store"
 
 const log = createLogger("deployments", "store")
 
@@ -20,14 +20,15 @@ const StoreContext = createContext<StoreContextValue>({ status: "loading", retry
 export type DeploymentsStoreProviderProps = {
   api?: DeploymentsApi
   databaseName?: string
+  seed?: StoreSeed
   children: ReactNode
 }
 
-export const DeploymentsStoreProvider = ({ api, databaseName, children }: DeploymentsStoreProviderProps) => {
+export const DeploymentsStoreProvider = ({ api, databaseName, seed, children }: DeploymentsStoreProviderProps) => {
   const [attempt, setAttempt] = useState(0)
   const retry = useCallback(() => setAttempt((previous) => previous + 1), [])
   return (
-    <OpenStore key={attempt} api={api} databaseName={databaseName} retry={retry}>
+    <OpenStore key={attempt} api={api} databaseName={databaseName} seed={seed} retry={retry}>
       {children}
     </OpenStore>
   )
@@ -59,7 +60,7 @@ const releaseWhenOpen = async (opening: Promise<DeploymentsStore>): Promise<void
   }
 }
 
-const OpenStore = ({ api, databaseName, retry, children }: OpenStoreProps) => {
+const OpenStore = ({ api, databaseName, seed, retry, children }: OpenStoreProps) => {
   const [state, setState] = useState<StoreState>({ status: "loading" })
 
   useEffect(() => {
@@ -67,6 +68,7 @@ const OpenStore = ({ api, databaseName, retry, children }: OpenStoreProps) => {
     const opening = openAfter(released, {
       api: api ?? createFetchDeploymentsApi(env.NEXT_PUBLIC_API_URL),
       databaseName,
+      seed,
     })
     const show = async () => {
       try {
@@ -83,7 +85,7 @@ const OpenStore = ({ api, databaseName, retry, children }: OpenStoreProps) => {
       abandoned = true
       released = releaseWhenOpen(opening)
     }
-  }, [api, databaseName])
+  }, [api, databaseName, seed])
 
   const value = useMemo<StoreContextValue>(() => ({ ...state, retry }), [state, retry])
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

@@ -18,11 +18,12 @@ export type DeploymentsPageClientProps = DeploymentsPageProps & { seed: Deployme
 
 export const DeploymentsPageClient = ({ seed, ...props }: DeploymentsPageClientProps) => {
   const [client] = useState(() => new DbClient())
+  const [storeSeed] = useState(() => ({ rows: seed.rows, checkpoint: seed.checkpoint }))
   return (
     <DbProvider client={client}>
       <HydrationBoundary state={seed.state}>
         <RetentionCutoffProvider cutoff={seed.cutoff}>
-          <DeploymentsStoreProvider>
+          <DeploymentsStoreProvider seed={storeSeed}>
             <DeploymentsPage {...props} />
           </DeploymentsStoreProvider>
         </RetentionCutoffProvider>
