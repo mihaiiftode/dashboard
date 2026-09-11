@@ -5,7 +5,7 @@ from uuid import UUID
 import pytest
 from pymongo.asynchronous.database import AsyncDatabase
 
-from app.deployments.change_feed import ChangeFeed
+from app.deployments.feed import ChangeFeed
 from app.deployments.models import Checkpoint
 from app.deployments.mongo_repository import MongoDeploymentRepository
 from app.deployments.service import DeploymentService

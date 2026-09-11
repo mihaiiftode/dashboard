@@ -3,7 +3,7 @@ import logging
 from datetime import UTC, datetime
 from uuid import UUID
 
-from app.deployments.change_feed import ChangePublisher
+from app.deployments.feed import ChangePublisher
 from app.deployments.models import (
     Attributes,
     Checkpoint,

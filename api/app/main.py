@@ -8,7 +8,7 @@ from pymongo import AsyncMongoClient
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import PyMongoError
 
-from app.deployments.change_feed import ChangeFeed
+from app.deployments.feed import ChangeFeed
 from app.deployments.mongo_repository import MongoDeploymentRepository
 from app.deployments.repository import DeploymentRepository
 from app.deployments.router import router as deployments_router

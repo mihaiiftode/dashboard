@@ -13,6 +13,7 @@ export const IdCell = ({ value, onCopy }: IdCellProps) => (
       render={
         <button
           type="button"
+          data-slot="id-copy"
           aria-label={`Copy deployment ID ${value}`}
           className={cn(
             "rounded-sm px-1 font-mono text-xs text-muted-foreground hover:bg-muted hover:text-foreground",

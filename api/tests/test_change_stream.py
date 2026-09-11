@@ -8,7 +8,7 @@ from httpx import AsyncClient
 from pymongo.asynchronous.database import AsyncDatabase
 from uvicorn import Config, Server
 
-from app.deployments.change_feed import ChangeFeed
+from app.deployments.feed import ChangeFeed
 from app.deployments.models import Deployment
 from app.deployments.router import frames
 from app.main import create_app

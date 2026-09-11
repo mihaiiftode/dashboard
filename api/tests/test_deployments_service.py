@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from app.deployments.change_feed import ChangePublisher
+from app.deployments.feed import ChangePublisher
 from app.deployments.models import Deployment, InvalidAttributes, Writable
 from app.deployments.repository import DeploymentRepository
 from app.deployments.service import (

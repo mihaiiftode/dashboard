@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { RETENTION_DAYS } from "@/lib/format"
+import { RETENTION_DAYS } from "@/features/deployments/store/schema"
 import { deployment } from "@/test/deployments"
 import { useRetentionCutoff } from "./use-retention-cutoff"
 

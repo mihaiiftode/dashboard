@@ -1,6 +1,6 @@
 import { createColumnHelper } from "@tanstack/react-table"
 import { TagIcon } from "lucide-react"
-import { daysLeft } from "@/lib/format"
+import { daysLeft } from "../../store/schema"
 import type { Deployment } from "../../store/schema"
 import { AttributesCell } from "../cells/attributes-cell"
 import { ChipEditCell } from "../cells/chip-edit-cell"

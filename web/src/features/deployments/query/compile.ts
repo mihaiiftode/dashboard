@@ -10,7 +10,7 @@ import {
   type QueryBuilder,
   type RefsForContext,
 } from "@tanstack/react-db"
-import { RETENTION_DAYS } from "@/lib/format"
+import { RETENTION_DAYS } from "../store/schema"
 import type { Deployment } from "../store/schema"
 import { FilterKind, FilterOperator, type Filter, type QueryPlan } from "./filters"
 import { resolveKey, type Field, type FieldCatalog } from "./fields"

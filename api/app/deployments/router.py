@@ -17,7 +17,7 @@ from fastapi import (
 from pydantic import AwareDatetime
 from sse_starlette import EventSourceResponse
 
-from app.deployments.change_feed import ChangeFeed
+from app.deployments.feed import ChangeFeed
 from app.deployments.models import (
     DEFAULT_LIMIT,
     Checkpoint,

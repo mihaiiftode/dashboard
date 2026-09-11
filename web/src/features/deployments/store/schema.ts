@@ -96,6 +96,13 @@ const writableSchema = deploymentSchema.pick({
 
 export const writableOf = (deployment: Deployment): WritableDeployment => writableSchema.parse(deployment)
 
+export const RETENTION_DAYS = 30
+
+export function daysLeft(deletedAt: string, retentionDays = RETENTION_DAYS, now = Date.now()): number {
+  const elapsed = (now - new Date(deletedAt).getTime()) / 86400e3
+  return Math.max(0, Math.ceil(retentionDays - elapsed))
+}
+
 export type WritableDeployment = z.infer<typeof writableSchema>
 export type Deployment = z.infer<typeof deploymentSchema>
 export type Checkpoint = z.infer<typeof checkpointSchema>

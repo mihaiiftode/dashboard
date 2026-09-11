@@ -15,6 +15,7 @@ export const TimeCell = ({ iso, suffix }: TimeCellProps) => {
         render={
           <button
             type="button"
+            data-slot="time-detail"
             aria-label={absolute}
             className={cn(
               "rounded-sm px-1 font-mono text-xs text-muted-foreground tabular-nums hover:bg-muted",

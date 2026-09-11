@@ -9,7 +9,7 @@ Applies to `api/` and `web/`. Reviews cite these rules by heading.
 - Touch only what the task needs. Match surrounding style. Mention unrelated dead code, never delete it unprompted.
 - Every task has a verifiable success criterion before implementation starts.
 - KISS over cleverness. DRY at the second real duplication, never the first.
-- No comments. Names, extraction, and types carry the why. Machine-read lines stay: shebang, pragma, lint and type directives.
+- No comments. Names, extraction, and types carry the why. Machine-read lines stay: shebang, pragma, lint and type directives. Python docstrings are part of the API surface, not comments, and stay where they record a why the signature cannot.
 
 ## Module size and layout
 
@@ -59,7 +59,7 @@ Applies to `api/` and `web/`. Reviews cite these rules by heading.
 - States: skeleton rows while hydrating from IndexedDB, empty state with a clear-query action, error boundary with retry per feature root.
 - Accessibility: WCAG AA contrast in both themes, every control keyboard reachable, visible focus, `/` focuses the query bar, toasts in an aria-live region, `prefers-reduced-motion` respected, semantic table markup preserved under virtualization.
 - Performance: the typing path stays under 16ms to paint in a production build. Suggestion counts come from incremental per-field indexes the store maintains. The row list re-ingests every row when the filter changes, so it updates on a debounce and stays off the typing path. The query engine has no DOM or React dependency so it can move to a Worker when measurement demands it.
-- Base UI conventions: `data-icon` on icons inside Button, `nativeButton={false}` when a Button renders a Link, items inside `DropdownMenuGroup`, `Field` plus `FieldError` for form rows, no sizing classes on icons inside components.
+- Base UI conventions: `data-icon` on icons inside Button, `nativeButton={false}` when a Button renders a Link, items inside `DropdownMenuGroup`, `Field` plus `FieldError` for form rows, no sizing classes on icons inside a component that already sizes them, such as Button. A standalone icon sizes itself.
 - No charts.
 
 ## Tests

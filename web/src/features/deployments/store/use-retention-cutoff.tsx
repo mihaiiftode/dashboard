@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, use, useEffect, useState, type ReactNode } from "react"
-import { RETENTION_DAYS } from "@/lib/format"
+import { RETENTION_DAYS } from "./schema"
 import { retentionCutoff } from "../query/compile"
 import type { Deployment } from "./schema"
 
