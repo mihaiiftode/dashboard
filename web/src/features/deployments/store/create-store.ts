@@ -142,6 +142,7 @@ export const createDeploymentsStore = async ({
       },
     }) as unknown as DeploymentsCollection
     acquired.collection = collection
+    if ((await rxCollection.count().exec()) > 0) rememberLocalRows()
 
     return {
       collection,
@@ -214,12 +215,16 @@ const sow = (
   pulled.sown = true
   pulled.checkpoint = seed.checkpoint
   log.debug("sowed {count} seeded deployments", { count: seed.rows.length })
+  rememberLocalRows()
   queueMicrotask(() => stream$.next("RESYNC"))
-  document.cookie = `${PLANTED_COOKIE}=1; path=/; max-age=${PLANTED_COOKIE_SECONDS}; samesite=lax`
   return {
     documents: seed.rows.map((row) => ({ ...row, _deleted: false })),
     checkpoint: seed.checkpoint,
   }
+}
+
+const rememberLocalRows = (): void => {
+  document.cookie = `${PLANTED_COOKIE}=1; path=/; max-age=${PLANTED_COOKIE_SECONDS}; samesite=lax`
 }
 
 const checkpointOf = (items: Deployment[]): Checkpoint | undefined => {
