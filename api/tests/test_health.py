@@ -39,9 +39,9 @@ async def test_health_reports_unavailable_when_database_unreachable(
 
 
 async def test_health_reports_unavailable_when_a_required_index_is_missing(
-    scratch_settings: Settings, database: AsyncDatabase
+    settings: Settings, database: AsyncDatabase
 ) -> None:
-    async with client_for(create_app(scratch_settings)) as client:
+    async with client_for(create_app(settings)) as client:
         await database[COLLECTION_NAME].drop_index("deployment_id_1")
 
         response = await client.get("/health")
@@ -68,13 +68,13 @@ async def test_health_reports_unavailable_when_a_required_index_is_missing(
     ],
 )
 async def test_health_reports_unavailable_when_a_required_index_is_malformed(
-    scratch_settings: Settings,
+    settings: Settings,
     database: AsyncDatabase,
     index_name: str,
     keys: list[tuple[str, int]],
     options: dict[str, Any],
 ) -> None:
-    async with client_for(create_app(scratch_settings)) as client:
+    async with client_for(create_app(settings)) as client:
         await database[COLLECTION_NAME].drop_index(index_name)
         await database[COLLECTION_NAME].create_index(keys, **options)
 
@@ -85,9 +85,9 @@ async def test_health_reports_unavailable_when_a_required_index_is_malformed(
 
 
 async def test_health_recovers_when_required_indexes_are_restored(
-    scratch_settings: Settings, database: AsyncDatabase
+    settings: Settings, database: AsyncDatabase
 ) -> None:
-    async with client_for(create_app(scratch_settings)) as client:
+    async with client_for(create_app(settings)) as client:
         await database[COLLECTION_NAME].drop_index("deleted_at_1")
         unavailable = await client.get("/health")
         await database[COLLECTION_NAME].create_index(

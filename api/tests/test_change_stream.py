@@ -98,12 +98,12 @@ async def publish_soon(feed: ChangeFeed, changed: Deployment) -> None:
 
 @pytest.fixture
 async def live_api(
-    scratch_settings: Settings, database: AsyncDatabase
+    settings: Settings, database: AsyncDatabase
 ) -> AsyncIterator[str]:
     stored = deployment(uuid4(), "before")
     await store(database, [stored])
     config = Config(
-        create_app(scratch_settings.model_copy(update={"heartbeat_seconds": 0.05})),
+        create_app(settings.model_copy(update={"heartbeat_seconds": 0.05})),
         host="127.0.0.1",
         port=0,
         log_level="warning",

@@ -18,7 +18,7 @@ Applies to `api/` and `web/`. Reviews cite these rules by heading.
 - Folder structure follows the layers already agreed. Backend: `api/app/deployments/{router,service,repository,feed,models}.py`. Frontend: `web/src/app` holds Next.js route files only, `web/src/features/deployments/{pages,components,hooks,query,store}` holds the feature, `web/src/components/{ui,shell}` holds shadcn registry files and the application shell, `web/src/lib/{api,env,logger,notify}` holds cross-feature infrastructure and a feature's own schema lives with that feature, `web/src/test` holds the test harness. New concerns get a sibling, not a new hierarchy.
 - A feature has no barrel. Callers import the module they need directly, because re-exporting a feature through one index drags client-only dependencies such as nuqs into the server graph. Inside the feature, imports are relative.
 - Route files under `web/src/app` stay thin: they read URL state and render a feature page with plain props. A page never imports the router.
-- Files are kebab-case, one component per file, named exports only. `export default` appears only where a Next.js route file requires it.
+- Files are kebab-case, one exported component per file, named exports only. A private helper component used only by that export stays in the same file, because splitting it out would leave a file too small to earn one. `export default` appears only where a Next.js route file requires it.
 
 ## Backend (FastAPI)
 
@@ -68,7 +68,7 @@ Applies to `api/` and `web/`. Reviews cite these rules by heading.
 - Tests cross a module's interface. The service depends on the repository abstraction and its tests mock that interface. Repository tests run against Mongo on testcontainers, each on its own scratch database. Router tests use ASGI transport over the real service and repository. Store tests on the client use the fake API adapter.
 - Test files are `*.spec.ts` or `*.spec.tsx`, colocated next to the source.
 - Component tests render a feature root over the store backed by the fake API adapter, with React Testing Library. They assert what a user sees and does: rows, edits, toasts, restores. No snapshot tests, no tests of styling.
-- Component tests render through `test/render.tsx`, which wraps providers and the fake API store, and drive input through `test/user.ts` with delays disabled. `test/setup.ts` stubs the jsdom gaps Base UI needs: `matchMedia`, `requestAnimationFrame`, `scrollIntoView`, `PointerEvent`.
+- Feature-root component tests render through `test/render.tsx`, which wraps providers and the fake API store, and drive input through `test/user.ts` with delays disabled. A presentational component with no store, and a test of a provider the harness itself wraps with, render bare. `test/setup.ts` stubs the jsdom gaps Base UI needs: `matchMedia`, `requestAnimationFrame`, `scrollIntoView`, `PointerEvent`.
 - Pure modules ship their spec in the same change. The query module gets no UI wiring until its grammar, resolver, and suggester specs pass.
-- No mock-was-called assertions. Assert on results and state.
+- No mock-was-called assertions where a result or a piece of state says the same thing. Asserting a collaborator call is right only when the call is the observable behaviour: a callback prop firing, a change being published, or a write that must not reach the repository at all.
 - A test that could not fail for a plausible bug does not get written.

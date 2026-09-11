@@ -48,7 +48,7 @@ def mongo_url() -> Iterator[str]:
 
 @pytest.fixture
 def settings(mongo_url: str) -> Settings:
-    return Settings(mongo_url=mongo_url, database_name="deployments_test")
+    return Settings(mongo_url=mongo_url, database_name=f"test_{uuid4().hex}")
 
 
 @asynccontextmanager
@@ -66,14 +66,9 @@ async def client(settings: Settings) -> AsyncIterator[AsyncClient]:
 
 
 @pytest.fixture
-def scratch_settings(mongo_url: str) -> Settings:
-    return Settings(mongo_url=mongo_url, database_name=f"test_{uuid4().hex}")
-
-
-@pytest.fixture
-async def database(scratch_settings: Settings) -> AsyncIterator[AsyncDatabase]:
-    client: AsyncMongoClient = AsyncMongoClient(scratch_settings.mongo_url)
-    scratch = client[scratch_settings.database_name]
+async def database(settings: Settings) -> AsyncIterator[AsyncDatabase]:
+    client: AsyncMongoClient = AsyncMongoClient(settings.mongo_url)
+    scratch = client[settings.database_name]
     yield scratch
     await client.drop_database(scratch.name)
     await client.close()

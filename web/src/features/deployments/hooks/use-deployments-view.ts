@@ -13,7 +13,7 @@ import { useFooterCounts } from "./use-footer-counts"
 import { useAllDeployments, useDeploymentWrites } from "../store/use-deployments"
 import { useRetentionCutoff } from "../store/use-retention-cutoff"
 import { useSyncStatus } from "../store/use-sync-status"
-import { sortParser } from "../query/url"
+import { sortParser } from "../url"
 import { useDeploymentQuery, type QueryChange } from "./use-deployment-query"
 
 export const QUERY_INPUT_ID = "search"

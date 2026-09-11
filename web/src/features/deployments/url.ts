@@ -1,5 +1,5 @@
 import { createParser, debounce, parseAsString } from "nuqs"
-import { DEFAULT_SORT, type Sorting } from "./sort"
+import { DEFAULT_SORT, type Sorting } from "./query/sort"
 
 const URL_SETTLE_MS = 350
 const DESCENDING = "-"

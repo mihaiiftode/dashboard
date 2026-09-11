@@ -2,7 +2,7 @@
 
 import { useQueryState } from "nuqs"
 import { DeploymentsPageClient } from "@/features/deployments/pages/deployments-page-client"
-import { groupParser, queryParser, sortParser } from "@/features/deployments/query/url"
+import { groupParser, queryParser, sortParser } from "@/features/deployments/url"
 import type { DeploymentsSeed } from "@/features/deployments/store/seed"
 
 export const DeploymentsRoute = ({ seed }: { seed: DeploymentsSeed }) => {

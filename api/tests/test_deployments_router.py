@@ -44,10 +44,10 @@ async def rows() -> list[Deployment]:
 
 @pytest.fixture
 async def client(
-    scratch_settings: Settings, database: AsyncDatabase, rows: list[Deployment]
+    settings: Settings, database: AsyncDatabase, rows: list[Deployment]
 ) -> AsyncIterator[AsyncClient]:
     await store(database, rows)
-    async with client_for(create_app(scratch_settings)) as http:
+    async with client_for(create_app(settings)) as http:
         yield http
 
 
@@ -221,13 +221,13 @@ async def deleted_row() -> Deployment:
 
 @pytest.fixture
 async def edit_client(
-    scratch_settings: Settings,
+    settings: Settings,
     database: AsyncDatabase,
     rows: list[Deployment],
     deleted_row: Deployment,
 ) -> AsyncIterator[AsyncClient]:
     await store(database, [*rows, deleted_row])
-    async with client_for(create_app(scratch_settings)) as http:
+    async with client_for(create_app(settings)) as http:
         yield http
 
 
