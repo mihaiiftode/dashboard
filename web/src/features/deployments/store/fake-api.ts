@@ -61,8 +61,9 @@ export const createFakeDeploymentsApi = (initial: Deployment[] = []): FakeDeploy
     emit: (documents) => {
       const last = documents.at(-1)
       if (!last) return
+      const known = new Map(rows.map((row) => [row.deployment_id, row]))
       for (const document of documents) {
-        const previous = rows.find((row) => row.deployment_id === document.deployment_id)
+        const previous = known.get(document.deployment_id)
         put(
           previous && previous.revision !== document.revision && document.updated_at <= previous.updated_at
             ? { ...document, updated_at: nextStamp(rows) }
