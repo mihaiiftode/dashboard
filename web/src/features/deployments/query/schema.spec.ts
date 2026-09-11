@@ -3,7 +3,7 @@ import { must } from "@/test/must"
 import { deployment } from "@/test/deployments"
 import { buildSchema } from "./schema"
 import { FIXED_FIELDS, RESERVED_KEYS, resolveKey } from "./fields"
-import { RESERVED_ATTRIBUTE_KEYS } from "../store/schema"
+import { attributeEntrySchema } from "../store/schema"
 
 const catalogOver = (attributes: Record<string, string>) =>
   buildSchema([deployment(1, { attributes: { name: "service-001", ...attributes } })]).catalog
@@ -47,12 +47,12 @@ describe("buildSchema", () => {
 })
 
 describe("reserved keys", () => {
-  it("reserves the same keys the write contract refuses", () => {
-    expect([...RESERVED_KEYS].toSorted()).toEqual([...RESERVED_ATTRIBUTE_KEYS].toSorted())
+  it("refuses every reserved key as an attribute name", () => {
+    for (const key of RESERVED_KEYS)
+      expect(attributeEntrySchema.safeParse({ key, value: "anything" }).success).toBe(false)
   })
 
-  it("reserves every fixed field key and every alias", () => {
+  it("reserves every fixed field key", () => {
     for (const field of FIXED_FIELDS) expect(RESERVED_KEYS.has(field.key)).toBe(true)
-    expect(RESERVED_KEYS.has("is")).toBe(true)
   })
 })

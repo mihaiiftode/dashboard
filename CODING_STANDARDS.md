@@ -24,7 +24,7 @@ Applies to `api/` and `web/`. Reviews cite these rules by heading.
 
 - Classes for anything with state or a seam: services, repositories, the change feed, settings. Route handlers stay as FastAPI functions and delegate immediately to a service method.
 - Dependencies are constructed once in the lifespan and injected with `Depends`. No module-level singletons, no clients built inside handlers.
-- Domain errors are exceptions raised by the service: `NotFound`, `Conflict`, `InvalidAttribute`. One `errors.py` maps them, Pydantic validation errors, and the unexpected catch-all to RFC 9457 problem+json. Handlers never build error responses by hand.
+- Domain errors are exceptions raised by the service. One `errors.py` maps them, Pydantic validation errors, and the unexpected catch-all to RFC 9457 problem+json. Handlers never build error responses by hand. The one exception is the stale write: 412 answers with the winning deployment and its ETag, because the client adopts that document rather than reading a problem.
 - Logging via `logging.getLogger(__name__)` per module, configured once at startup. JSON lines when `LOG_FORMAT=json`, plain otherwise. Log every write at INFO with the deployment ID, conflicts at WARNING, unexpected failures at ERROR with traceback. No `print`.
 - Full type hints. `ruff` for lint and format, `ty check` clean.
 
@@ -36,7 +36,7 @@ Applies to `api/` and `web/`. Reviews cite these rules by heading.
 - Column definitions come from one factory in the feature that takes the field schema and visible Fields and returns TanStack column defs. Each cell renderer is its own file under `components/cells`.
 - Every primitive root and every editable control carries `data-slot`. Click forwarding selects on `data-slot`, never on class names, titles, or text. Tests select by role and visible text first and by `data-slot` only when neither exists.
 - URL state goes through nuqs parsers: `q` carries the query, `group` and `sort` carry the view. Updates push history so back, forward, and reload restore the view.
-- Loading, error, and empty states render through one boundary component per feature root taking `loading`, `error`, `isEmpty`, and children. No `if (loading)` ladders in pages.
+- Loading and error states render through one boundary component per feature root taking `loading`, `error`, and children. No `if (loading)` ladders in pages. The empty state belongs below the boundary, where the query result it depends on is in scope.
 - The first paint comes from a seed the route's server component fetches and hands down as props. A seed that fails logs the reason. It never falls back to client-side replication in silence, because the app still works and only gets slower, so nothing surfaces the failure.
 - Derive state during render, never in effects. `useMemo` context values and objects passed to memoized children. `useCallback` and `memo` only where a memoized child or a hook dependency needs a stable reference. No components defined inside components. Map and Set for repeated lookups. Ternaries, not `&&`, for conditional JSX.
 - `cn()` for every class merge, CVA for variants.

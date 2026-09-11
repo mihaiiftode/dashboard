@@ -73,7 +73,7 @@ const ITEMS_OF: Record<FieldKind, KindItems> = {
     anywhereItem(clause, field, index),
     ...valueItems(clause, field, index),
   ],
-  [FieldKind.Id]: (clause, field, index) => [anywhereItem(clause, field, index), ...valueItems(clause, field, index)],
+  [FieldKind.Id]: (clause, field) => [anywhereItem(clause, field, null)],
 }
 
 const keyItems = (
@@ -142,12 +142,12 @@ const valueItems = (clause: Clause, field: Field, index: ValueIndex): Suggestion
     insert: insertOf(field, quoteValue(entry.value), clause.comparator),
   }))
 
-const anywhereItem = (clause: Clause, field: Field, index: ValueIndex): Suggestion => ({
+const anywhereItem = (clause: Clause, field: Field, index: ValueIndex | null): Suggestion => ({
   id: "anywhere:value",
   kind: "anywhere",
   label: `${field.key}:${clause.partial === "" ? "…" : quoteValue(clause.partial)}`,
   detail: "matches anywhere",
-  count: coveredBy(index, clause.partial),
+  count: index === null ? undefined : coveredBy(index, clause.partial),
   insert: clause.partial === "" ? `${field.key}:` : insertOf(field, quoteValue(clause.partial), clause.comparator),
 })
 

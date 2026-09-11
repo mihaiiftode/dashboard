@@ -8,25 +8,14 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 export type FeatureBoundaryProps = {
   loading: boolean
   error: Error | null
-  isEmpty?: boolean
   pending: ReactNode
-  empty?: ReactNode
   onRetry: () => void
   children: ReactNode
 }
 
-export const FeatureBoundary = ({
-  loading,
-  error,
-  isEmpty = false,
-  pending,
-  empty,
-  onRetry,
-  children,
-}: FeatureBoundaryProps) => {
+export const FeatureBoundary = ({ loading, error, pending, onRetry, children }: FeatureBoundaryProps) => {
   if (error) return <LoadFailure error={error} onRetry={onRetry} />
   if (loading) return pending
-  if (isEmpty && empty) return empty
   return children
 }
 

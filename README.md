@@ -15,7 +15,7 @@ make seed                     # 5,000 deployments; make seed COUNT=50000 for ten
 open http://localhost:3000
 ```
 
-If port 3000 is taken, run `WEB_PORT=3002 docker compose up -d` and rebuild the web image, so the browser bundle points at the API it will actually call.
+If port 3000 is taken, run `WEB_PORT=3002 docker compose up -d`. Add the new origin to `API_CORS_ORIGINS`, or the browser will block every call the dashboard makes.
 
 Each side on its own, with Mongo from compose:
 
@@ -43,6 +43,7 @@ Copy `.env.example`. The API reads `API_`-prefixed variables, the browser bundle
 | `API_LOG_LEVEL` | `INFO` | `DEBUG` while chasing something |
 | `API_HEARTBEAT_SECONDS` | `15` | How often the change stream sends a keep-alive comment |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Where the browser sends writes |
+| `API_ORIGIN` | falls back to `NEXT_PUBLIC_API_URL` | Where the Next.js server fetches the seed, for a private address the browser cannot reach |
 | `WEB_PORT` | `3000` | Publish the web container elsewhere |
 
 ## Tests and checks
@@ -75,7 +76,7 @@ One input takes every query. Bare words match anywhere across identifier, versio
 
 Queries use [Liqe](https://github.com/gajus/liqe) syntax. Spaces between filters mean `AND`, and a filter prefixed with `-` or `NOT` is negated. Commas are literal characters.
 
-Disjunctions and parenthesised groups are not supported. A clause written with `OR` or parentheses stays in the bar and is marked rather than applied. The deployment adapter handles text, enum, wildcard, and calendar-date filters, but not regex or numeric ranges.
+Disjunctions are not supported: a clause written with `OR` stays in the bar and is marked rather than applied. Parentheses are stripped, so `(status:failed)` filters exactly as `status:failed` does. The deployment adapter handles text, enum, wildcard, and calendar-date filters, but not regex or numeric ranges.
 
 Use `is:deleted` as a separate `AND` clause to select the trash. Table headers and the Fields panel control sorting and grouping, under their own URL parameters.
 

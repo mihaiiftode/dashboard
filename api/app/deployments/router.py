@@ -114,8 +114,8 @@ async def list_deployments(
     "/events",
     summary="Stream deployment changes",
     description=(
-        "Server-sent events, one frame per write, each carrying the changed documents and the "
-        "checkpoint to resume from. Comment frames keep the connection warm."
+        "Server-sent events, one frame per write, each carrying only the changed deployment id. "
+        "Clients pull from their own checkpoint on receipt. Comment frames keep the connection warm."
     ),
     response_class=EventSourceResponse,
     responses={

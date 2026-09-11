@@ -105,9 +105,9 @@ class Attributes(BaseModel):
         for key, value in self.extras.items():
             if not KEY_RULE.match(key):
                 raise ValueError(f"attribute key {key!r} must match {KEY_RULE.pattern}")
-            if not isinstance(value, str) or not 1 <= len(value) <= 512:
+            if not isinstance(value, str) or not 1 <= len(value) <= VALUE_MAX_LENGTH:
                 raise ValueError(
-                    f"attribute {key!r} must be a string of 1 to 512 characters"
+                    f"attribute {key!r} must be a string of 1 to {VALUE_MAX_LENGTH} characters"
                 )
         return self
 
