@@ -1,15 +1,6 @@
 "use client"
 
-import {
-  createContext,
-  startTransition,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react"
+import { createContext, startTransition, use, useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import { env } from "@/lib/env"
 import { createLogger } from "@/lib/logger"
 import { createFetchDeploymentsApi, type DeploymentsApi } from "./api"
@@ -100,10 +91,10 @@ const OpenStore = ({ api, databaseName, seed, retry, children }: OpenStoreProps)
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
 }
 
-export const useDeploymentsStoreState = () => useContext(StoreContext)
+export const useDeploymentsStoreState = () => use(StoreContext)
 
 export const useDeploymentsStore = (): DeploymentsStore => {
-  const state = useContext(StoreContext)
+  const state = use(StoreContext)
   if (state.status !== "ready") throw new Error("useDeploymentsStore used outside a ready store")
   return state.store
 }

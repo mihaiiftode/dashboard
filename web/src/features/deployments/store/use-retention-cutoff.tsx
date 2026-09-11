@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
+import { createContext, use, useEffect, useState, type ReactNode } from "react"
 import { RETENTION_DAYS } from "@/lib/format"
 import { retentionCutoff } from "../query/compile"
 import type { Deployment } from "./schema"
@@ -15,7 +15,7 @@ export const RetentionCutoffProvider = ({ cutoff, children }: { cutoff: number; 
 )
 
 export const useRetentionCutoff = (rows: readonly Deployment[]): number => {
-  const seeded = useContext(SeededCutoffContext)
+  const seeded = use(SeededCutoffContext)
   const [cutoff, setCutoff] = useState(() => seeded ?? retentionCutoff())
 
   useEffect(() => {

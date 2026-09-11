@@ -1,8 +1,9 @@
 "use client"
 
 import { useQueryState } from "nuqs"
-import { DeploymentsPageClient, groupParser, queryParser, sortParser } from "@/features/deployments/main"
-import type { DeploymentsSeed } from "@/features/deployments/main"
+import { DeploymentsPageClient } from "@/features/deployments/pages/deployments-page-client"
+import { groupParser, queryParser, sortParser } from "@/features/deployments/query/url"
+import type { DeploymentsSeed } from "@/features/deployments/store/seed"
 
 export const DeploymentsRoute = ({ seed }: { seed: DeploymentsSeed }) => {
   const [query, setQuery] = useQueryState("q", queryParser)

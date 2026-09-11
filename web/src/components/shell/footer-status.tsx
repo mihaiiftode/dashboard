@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react"
+import { createContext, use, useEffect, useState, useSyncExternalStore, type ReactNode } from "react"
 import { FooterBar, type FooterCounts, type SyncState } from "./footer-bar"
 import { createVisibleRangeStore, nothingVisible, type VisibleRange, type VisibleRangeStore } from "./visible-range"
 
@@ -29,7 +29,7 @@ export const FooterStatusProvider = ({ children }: { children: ReactNode }) => {
   )
 }
 
-const useRangeStore = (): VisibleRangeStore | null => useContext(RangeStoreContext)
+const useRangeStore = (): VisibleRangeStore | null => use(RangeStoreContext)
 
 export const usePublishVisibleRange = (range: VisibleRange) => {
   const store = useRangeStore()
@@ -48,13 +48,13 @@ const useVisibleRange = (): VisibleRange => {
 const noSubscription = () => () => {}
 
 export const StatusFooter = () => {
-  const status = useContext(StatusContext)
+  const status = use(StatusContext)
   const range = useVisibleRange()
   return <FooterBar counts={status.counts} range={range} sync={status.sync} />
 }
 
 export const usePublishFooterStatus = (status: FooterStatus) => {
-  const publish = useContext(PublishContext)
+  const publish = use(PublishContext)
   useEffect(() => {
     publish(status)
     return () => publish(connecting)

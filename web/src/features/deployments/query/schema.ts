@@ -2,6 +2,7 @@ import type { Deployment } from "../store/schema"
 import { FIXED_FIELDS, RESERVED_KEYS, FieldKind, readFieldValue, type Field, type FieldCatalog } from "./fields"
 
 const ATTRIBUTE_ORDER = ["name", "description", "team", "region", "priority", "language", "framework", "oncall"]
+const ATTRIBUTE_RANK: ReadonlyMap<string, number> = new Map(ATTRIBUTE_ORDER.map((key, rank) => [key, rank]))
 
 export type FieldStatistics = {
   attributeCounts: ReadonlyMap<string, number>
@@ -21,10 +22,9 @@ export const attributeKeysOf = (counts: ReadonlyMap<string, number>): string[] =
   [...counts.keys()]
     .filter((key) => !RESERVED_KEYS.has(key))
     .toSorted((a, b) => {
-      const leftPriority = ATTRIBUTE_ORDER.indexOf(a)
-      const rightPriority = ATTRIBUTE_ORDER.indexOf(b)
-      if (leftPriority !== -1 || rightPriority !== -1)
-        return (leftPriority === -1 ? Infinity : leftPriority) - (rightPriority === -1 ? Infinity : rightPriority)
+      const leftPriority = ATTRIBUTE_RANK.get(a) ?? Infinity
+      const rightPriority = ATTRIBUTE_RANK.get(b) ?? Infinity
+      if (leftPriority !== Infinity || rightPriority !== Infinity) return leftPriority - rightPriority
       return (counts.get(b) ?? 0) - (counts.get(a) ?? 0)
     })
 

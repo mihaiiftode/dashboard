@@ -25,6 +25,7 @@ const VALUE_LIMIT = 12
 
 const DIRECTIVE_DETAIL: Record<string, string> = { [SCOPE_KEY]: "is:deleted shows the trash" }
 const DIRECTIVE_KEYS = Object.keys(DIRECTIVE_DETAIL)
+const DIRECTIVE_LOOKUP: ReadonlySet<string> = new Set(DIRECTIVE_KEYS)
 const DAY_DETAIL: Record<string, string> = {
   "": "on that day",
   "<": "before that day",
@@ -88,7 +89,7 @@ const keyItems = (
     const field = catalog.byKey.get(key)
     items.push({
       id: `key:${key}`,
-      kind: DIRECTIVE_KEYS.includes(key) ? "directive" : "key",
+      kind: DIRECTIVE_LOOKUP.has(key) ? "directive" : "key",
       label: `${key}:`,
       detail: DIRECTIVE_DETAIL[key] ?? (field?.attribute ? "attribute" : field?.kind),
       count: field?.attribute ? attributeCounts.get(key) : undefined,
