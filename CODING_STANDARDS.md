@@ -16,7 +16,7 @@ Applies to `api/` and `web/`. Reviews cite these rules by heading.
 - One file, one responsibility. Split when a file gains a second reason to change.
 - Small, not tiny. A file under roughly thirty lines merges into its neighbour unless it is a real seam with two adapters.
 - Folder structure follows the layers already agreed. Backend: `api/app/deployments/{router,service,repository,feed,models}.py`. Frontend: `web/src/app` holds Next.js route files only, `web/src/features/deployments/{pages,components,hooks,query,store}` holds the feature, `web/src/components/{ui,shell}` holds shadcn registry files and the application shell, `web/src/lib/{api,env,logger,notify}` holds cross-feature infrastructure and a feature's own schema lives with that feature, `web/src/test` holds the test harness. New concerns get a sibling, not a new hierarchy.
-- A feature exposes its public surface through `features/<name>/main.ts`. Nothing outside the feature imports its `pages`, `components`, `hooks`, `query`, or `store` directly. Inside the feature, imports are relative.
+- A feature has no barrel. Callers import the module they need directly, because re-exporting a feature through one index drags client-only dependencies such as nuqs into the server graph. Inside the feature, imports are relative.
 - Route files under `web/src/app` stay thin: they read URL state and render a feature page with plain props. A page never imports the router.
 - Files are kebab-case, one component per file, named exports only. `export default` appears only where a Next.js route file requires it.
 
@@ -35,8 +35,9 @@ Applies to `api/` and `web/`. Reviews cite these rules by heading.
 - Presentational components receive data and callbacks as props and never touch the store, the router, or `notify`. Container hooks bind the store and hand props down. Cell renderers take a value and an `onCommit` callback.
 - Column definitions come from one factory in the feature that takes the field schema and visible Fields and returns TanStack column defs. Each cell renderer is its own file under `components/cells`.
 - Every primitive root and every editable control carries `data-slot`. Click forwarding selects on `data-slot`, never on class names, titles, or text. Tests select by role and visible text first and by `data-slot` only when neither exists.
-- URL state goes through nuqs parsers. `q` is the only parameter. Updates push history so back, forward, and reload restore the view.
+- URL state goes through nuqs parsers: `q` carries the query, `group` and `sort` carry the view. Updates push history so back, forward, and reload restore the view.
 - Loading, error, and empty states render through one boundary component per feature root taking `loading`, `error`, `isEmpty`, and children. No `if (loading)` ladders in pages.
+- The first paint comes from a seed the route's server component fetches and hands down as props. A seed that fails logs the reason. It never falls back to client-side replication in silence, because the app still works and only gets slower, so nothing surfaces the failure.
 - Derive state during render, never in effects. `useMemo` context values and objects passed to memoized children. `useCallback` and `memo` only where a memoized child or a hook dependency needs a stable reference. No components defined inside components. Map and Set for repeated lookups. Ternaries, not `&&`, for conditional JSX.
 - `cn()` for every class merge, CVA for variants.
 - One `ApiError` type parsed from problem+json in the API adapter. Features never inspect raw responses.
@@ -49,7 +50,7 @@ Applies to `api/` and `web/`. Reviews cite these rules by heading.
 
 - shadcn/ui components on Base UI primitives, Tailwind v4, lucide icons, Base UI toast through the shadcn toast component, next-themes for the theme toggle. TanStack Table v9 with the feature-based API, TanStack Virtual for rows. No second component library, no sonner.
 - One table, one query bar, one Fields panel. No facet controls, no detail sheet or route, no separate deleted view, no row menu.
-- The query grammar, field schema, resolver, and suggester form one module with no React imports. Components consume its parsed result. Query state lives in the URL as a single `q` parameter.
+- The query grammar, field schema, resolver, and suggester form one module with no React imports. Components consume its parsed result. The query lives in the URL under `q`, grouping and sorting under their own parameters.
 - Fields: fixed fields plus every Attribute key. Default columns are the fixed fields and Attributes present on at least a third of rows. Chip Fields render as hash-coloured chips, other Attributes as text. Remaining Attributes collapse into one Attributes column with packed chips, an overflow badge, and a popover editor with the key rule enforced inline.
 - Inline edit on every cell: the whole cell is the click target, text cells edit with an input, Chip Fields with an autocomplete over existing values. Enter saves, Escape cancels, blur saves. Pending state per row until synced. A conflict reverts the cell and toasts the winning value. Deleted rows are read only.
 - Delete and restore are one icon per row. Both toast with an idempotent Undo. The deleted scope shows a Deleted column with relative time and days left.
@@ -57,7 +58,7 @@ Applies to `api/` and `web/`. Reviews cite these rules by heading.
 - Shell: header is brand plus theme toggle. Footer carries the row window, the matched count in an aria-live region, the total when filtered, and the sync indicator. Skip link present.
 - States: skeleton rows while hydrating from IndexedDB, empty state with a clear-query action, error boundary with retry per feature root.
 - Accessibility: WCAG AA contrast in both themes, every control keyboard reachable, visible focus, `/` focuses the query bar, toasts in an aria-live region, `prefers-reduced-motion` respected, semantic table markup preserved under virtualization.
-- Performance: keystroke to paint under 16ms in a production build at the seeded dataset and at ten times it. Filtering, sorting, grouping, and suggestion counts are incremental structures maintained by the store, never a full pass per keystroke. The query engine has no DOM or React dependency so it can move to a Worker when measurement demands it.
+- Performance: the typing path stays under 16ms to paint in a production build. Suggestion counts come from incremental per-field indexes the store maintains. The row list re-ingests every row when the filter changes, so it updates on a debounce and stays off the typing path. The query engine has no DOM or React dependency so it can move to a Worker when measurement demands it.
 - Base UI conventions: `data-icon` on icons inside Button, `nativeButton={false}` when a Button renders a Link, items inside `DropdownMenuGroup`, `Field` plus `FieldError` for form rows, no sizing classes on icons inside components.
 - No charts.
 

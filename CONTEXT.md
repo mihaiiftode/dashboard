@@ -49,6 +49,18 @@ _Avoid_: trash, view, mode, tab, recycle bin
 Returning a deleted deployment to the list unchanged.
 _Avoid_: undelete, recover, undo
 
+**Revision**:
+A counter on a deployment that rises with every write. A write names the revision it was based on, and the server refuses it if that is no longer the current one.
+_Avoid_: version, etag, timestamp
+
+**Checkpoint**:
+How far through the deployments a browser has read. A returning browser carries on from its checkpoint rather than reading everything again.
+_Avoid_: cursor, offset, watermark
+
+**Seed**:
+The deployments the server sends with the first page load, so the list is filled before the browser starts reading on its own.
+_Avoid_: preload, hydration data, initial state
+
 **Query**:
 The text in the query bar that narrows the list. Made of clauses. Grouping and sorting are not part of it.
 _Avoid_: search string, filter string
