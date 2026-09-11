@@ -1,5 +1,13 @@
 import type { Deployment } from "../store/schema"
-import { FIXED_FIELDS, RESERVED_KEYS, FieldKind, readFieldValue, type Field, type FieldCatalog } from "./fields"
+import {
+  attributeWidth,
+  FIXED_FIELDS,
+  RESERVED_KEYS,
+  FieldKind,
+  readFieldValue,
+  type Field,
+  type FieldCatalog,
+} from "./fields"
 
 const ATTRIBUTE_ORDER = ["name", "description", "team", "region", "priority", "language", "framework", "oncall"]
 const ATTRIBUTE_RANK: ReadonlyMap<string, number> = new Map(ATTRIBUTE_ORDER.map((key, rank) => [key, rank]))
@@ -34,6 +42,7 @@ export const catalogFor = (attributeKeys: readonly string[]): FieldCatalog => {
     label: key,
     kind: FieldKind.String,
     attribute: true,
+    width: attributeWidth(key),
   }))
   const fields = [...FIXED_FIELDS]
   fields.splice(1, 0, ...attributeFields.slice(0, 1))
@@ -57,10 +66,4 @@ export const statisticsFor = (
     distinct.set(field.key, values)
   }
   return { attributeCounts, distinct, total: rows.length }
-}
-
-export function buildSchema(rows: readonly Deployment[]): { catalog: FieldCatalog; statistics: FieldStatistics } {
-  const attributeCounts = attributeCountsOf(rows)
-  const catalog = catalogFor(attributeKeysOf(attributeCounts))
-  return { catalog, statistics: statisticsFor(rows, catalog, attributeCounts) }
 }

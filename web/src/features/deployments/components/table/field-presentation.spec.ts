@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { deployments } from "@/test/deployments"
-import { buildSchema } from "../../query/schema"
+import { buildSchema } from "@/test/schema"
 import { groupCandidates } from "./field-presentation"
 
 const { catalog } = buildSchema(deployments(12))

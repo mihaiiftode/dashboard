@@ -97,9 +97,7 @@ async def publish_soon(feed: ChangeFeed, changed: Deployment) -> None:
 
 
 @pytest.fixture
-async def live_api(
-    settings: Settings, database: AsyncDatabase
-) -> AsyncIterator[str]:
+async def live_api(settings: Settings, database: AsyncDatabase) -> AsyncIterator[str]:
     stored = deployment(uuid4(), "before")
     await store(database, [stored])
     config = Config(

@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from http import HTTPStatus
 
 from fastapi import FastAPI, Request, status
@@ -95,28 +95,35 @@ def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(Exception, unexpected_exception_handler)
 
 
-async def not_found_handler(request: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, DeploymentNotFound)
-    return problem_response(
-        Problem(
-            title="Not Found",
-            status=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-            instance=request.url.path,
-        )
-    )
+DOMAIN_PROBLEMS: dict[type[Exception], tuple[str, int, str]] = {
+    DeploymentNotFound: ("Not Found", status.HTTP_404_NOT_FOUND, ""),
+    DeploymentDeleted: (
+        "Conflict",
+        status.HTTP_409_CONFLICT,
+        " and cannot be edited until it is restored",
+    ),
+    DeploymentNotDeleted: (
+        "Conflict",
+        status.HTTP_409_CONFLICT,
+        " so there is nothing to restore",
+    ),
+}
 
 
-async def deleted_handler(request: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, DeploymentDeleted)
-    return problem_response(
-        Problem(
-            title="Conflict",
-            status=status.HTTP_409_CONFLICT,
-            detail=f"{exc} and cannot be edited until it is restored",
-            instance=request.url.path,
+def domain_problem_handler(
+    title: str, status_code: int, suffix: str
+) -> Callable[[Request, Exception], Awaitable[JSONResponse]]:
+    async def handler(request: Request, exc: Exception) -> JSONResponse:
+        return problem_response(
+            Problem(
+                title=title,
+                status=status_code,
+                detail=f"{exc}{suffix}",
+                instance=request.url.path,
+            )
         )
-    )
+
+    return handler
 
 
 async def invalid_attributes_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -135,18 +142,6 @@ async def invalid_attributes_handler(request: Request, exc: Exception) -> JSONRe
     )
 
 
-async def not_deleted_handler(request: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, DeploymentNotDeleted)
-    return problem_response(
-        Problem(
-            title="Conflict",
-            status=status.HTTP_409_CONFLICT,
-            detail=f"{exc} so there is nothing to restore",
-            instance=request.url.path,
-        )
-    )
-
-
 async def stale_write_handler(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, StaleWrite)
     return JSONResponse(
@@ -157,8 +152,9 @@ async def stale_write_handler(request: Request, exc: Exception) -> JSONResponse:
 
 
 def register_deployment_error_handlers(app: FastAPI) -> None:
-    app.add_exception_handler(DeploymentNotFound, not_found_handler)
-    app.add_exception_handler(DeploymentDeleted, deleted_handler)
+    for error, (title, status_code, suffix) in DOMAIN_PROBLEMS.items():
+        app.add_exception_handler(
+            error, domain_problem_handler(title, status_code, suffix)
+        )
     app.add_exception_handler(InvalidAttributes, invalid_attributes_handler)
-    app.add_exception_handler(DeploymentNotDeleted, not_deleted_handler)
     app.add_exception_handler(StaleWrite, stale_write_handler)

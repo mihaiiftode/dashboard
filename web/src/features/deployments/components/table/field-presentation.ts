@@ -1,9 +1,9 @@
-import { FieldKind, type Field, type FieldCatalog } from "../../query/fields"
+import { FieldKind, FIXED_FIELDS, type Field, type FieldCatalog } from "../../query/fields"
 import type { FieldStatistics } from "../../query/schema"
 
 const CHIP_MAX_DISTINCT = 12
 const PROMOTE_COVERAGE = 0.33
-const FIXED_VISIBLE = ["id", "status", "type", "env", "version", "creator", "created"]
+const FIXED_VISIBLE = FIXED_FIELDS.filter((field) => field.initiallyVisible).map((field) => field.key)
 
 export function isChipField(statistics: FieldStatistics, field: Field): boolean {
   if (!field.attribute || field.key === "name" || field.key === "description") return false

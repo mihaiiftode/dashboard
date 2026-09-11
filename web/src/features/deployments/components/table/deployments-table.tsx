@@ -12,21 +12,7 @@ import { tableFeatures, type DeploymentColumns, type DeploymentsTableMeta } from
 import { GroupRow } from "./group-row"
 import { TableHeaderRow } from "./table-header-row"
 
-const WIDTH: Record<string, string> = {
-  id: "104px",
-  name: "minmax(200px,1.6fr)",
-  description: "minmax(240px,2fr)",
-  status: "110px",
-  type: "130px",
-  env: "116px",
-  version: "90px",
-  creator: "minmax(180px,1.2fr)",
-  created: "120px",
-  deleted: "190px",
-  attributes: "minmax(300px,2fr)",
-  actions: "40px",
-}
-const ATTRIBUTE_WIDTH = "minmax(150px,1fr)"
+const SYNTHETIC_WIDTH = { attributes: "minmax(300px,2fr)", actions: "40px" }
 const ROW_HEIGHT = 40
 const OVERSCAN = 16
 
@@ -58,9 +44,9 @@ export const DeploymentsTable = memo(function DeploymentsTable({
   const grid = useMemo(
     () =>
       [
-        ...fields.map((field) => WIDTH[field.key] ?? ATTRIBUTE_WIDTH),
-        ...(hasAttributesColumn ? [WIDTH.attributes] : []),
-        WIDTH.actions,
+        ...fields.map((field) => field.width),
+        ...(hasAttributesColumn ? [SYNTHETIC_WIDTH.attributes] : []),
+        SYNTHETIC_WIDTH.actions,
       ].join(" "),
     [fields, hasAttributesColumn],
   )

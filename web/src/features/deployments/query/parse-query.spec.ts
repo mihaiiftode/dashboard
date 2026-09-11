@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { deployments } from "@/test/deployments"
 import { FilterKind, FilterOperator } from "./filters"
 import { parseQuery, quoteValue } from "./parse-query"
-import { buildSchema } from "./schema"
+import { buildSchema } from "@/test/schema"
 
 const rows = deployments(12)
 const { catalog } = buildSchema(rows)

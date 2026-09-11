@@ -19,8 +19,18 @@ export type Field = {
   key: string
   label: string
   kind: FieldKind
+  width: string
+  initiallyVisible?: boolean
   aliases?: Readonly<Record<string, string>>
 } & ({ attribute: true } | { attribute: false; column: StoredColumn })
+
+const ATTRIBUTE_WIDTH = "minmax(150px,1fr)"
+const NAMED_ATTRIBUTE_WIDTH: Readonly<Record<string, string>> = {
+  name: "minmax(200px,1.6fr)",
+  description: "minmax(240px,2fr)",
+}
+
+export const attributeWidth = (key: string): string => NAMED_ATTRIBUTE_WIDTH[key] ?? ATTRIBUTE_WIDTH
 
 const ENV_ALIASES: Record<string, string> = { prod: "production", stage: "staging", dev: "development" }
 const TYPE_ALIASES: Record<string, string> = {
@@ -31,8 +41,24 @@ const TYPE_ALIASES: Record<string, string> = {
 }
 
 export const FIXED_FIELDS: Field[] = [
-  { key: "id", label: "ID", kind: FieldKind.Id, attribute: false, column: "deployment_id" },
-  { key: "status", label: "Status", kind: FieldKind.Enum, attribute: false, column: "status" },
+  {
+    key: "id",
+    label: "ID",
+    kind: FieldKind.Id,
+    attribute: false,
+    column: "deployment_id",
+    width: "104px",
+    initiallyVisible: true,
+  },
+  {
+    key: "status",
+    label: "Status",
+    kind: FieldKind.Enum,
+    attribute: false,
+    column: "status",
+    width: "110px",
+    initiallyVisible: true,
+  },
   {
     key: "type",
     label: "Type",
@@ -40,6 +66,8 @@ export const FIXED_FIELDS: Field[] = [
     attribute: false,
     column: "type",
     aliases: TYPE_ALIASES,
+    width: "130px",
+    initiallyVisible: true,
   },
   {
     key: "env",
@@ -48,11 +76,37 @@ export const FIXED_FIELDS: Field[] = [
     attribute: false,
     column: "environment",
     aliases: ENV_ALIASES,
+    width: "116px",
+    initiallyVisible: true,
   },
-  { key: "version", label: "Version", kind: FieldKind.String, attribute: false, column: "version" },
-  { key: "creator", label: "Creator", kind: FieldKind.String, attribute: false, column: "created_by" },
-  { key: "created", label: "Created", kind: FieldKind.Date, attribute: false, column: "created_at" },
-  { key: "deleted", label: "Deleted", kind: FieldKind.Date, attribute: false, column: "deleted_at" },
+  {
+    key: "version",
+    label: "Version",
+    kind: FieldKind.String,
+    attribute: false,
+    column: "version",
+    width: "90px",
+    initiallyVisible: true,
+  },
+  {
+    key: "creator",
+    label: "Creator",
+    kind: FieldKind.String,
+    attribute: false,
+    column: "created_by",
+    width: "minmax(180px,1.2fr)",
+    initiallyVisible: true,
+  },
+  {
+    key: "created",
+    label: "Created",
+    kind: FieldKind.Date,
+    attribute: false,
+    column: "created_at",
+    width: "120px",
+    initiallyVisible: true,
+  },
+  { key: "deleted", label: "Deleted", kind: FieldKind.Date, attribute: false, column: "deleted_at", width: "190px" },
 ]
 
 const ALIASES: Record<string, string> = {

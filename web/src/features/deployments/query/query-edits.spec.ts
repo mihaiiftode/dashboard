@@ -3,7 +3,7 @@ import { must } from "@/test/must"
 import { deployments } from "@/test/deployments"
 import { parseQuery } from "./parse-query"
 import { clauseAt, replaceSpan, withoutClause, withValue } from "./query-edits"
-import { buildSchema } from "./schema"
+import { buildSchema } from "@/test/schema"
 
 const rows = deployments(12)
 const { catalog } = buildSchema(rows)

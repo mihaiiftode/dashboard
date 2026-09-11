@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { deployment, deployments } from "@/test/deployments"
 import { indexedFieldOf, suggest, type SuggestContext } from "./suggest"
-import { buildSchema } from "./schema"
+import { buildSchema } from "@/test/schema"
 import { EMPTY_VALUE_INDEX, valueIndexOf, type ValueIndex } from "./value-index"
 import { parseQuery } from "./parse-query"
 import { clauseAt, replaceSpan } from "./query-edits"

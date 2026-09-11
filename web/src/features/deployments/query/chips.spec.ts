@@ -3,7 +3,7 @@ import { deployments } from "@/test/deployments"
 import { chipsOf } from "./chips"
 import { withoutClause } from "./query-edits"
 import { parseQuery, type Span } from "./parse-query"
-import { buildSchema } from "./schema"
+import { buildSchema } from "@/test/schema"
 
 const { catalog } = buildSchema(deployments(12))
 

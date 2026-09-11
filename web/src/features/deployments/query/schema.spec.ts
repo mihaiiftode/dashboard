@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { must } from "@/test/must"
 import { deployment } from "@/test/deployments"
-import { buildSchema } from "./schema"
+import { buildSchema } from "@/test/schema"
 import { FIXED_FIELDS, RESERVED_KEYS, resolveKey } from "./fields"
 import { attributeEntrySchema } from "../store/schema"
 

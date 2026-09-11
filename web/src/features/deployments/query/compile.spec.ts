@@ -5,7 +5,7 @@ import { DAY_MS } from "../store/schema"
 import type { Deployment } from "../store/schema"
 import { compileQuery, compileScopeCounts } from "./compile"
 import { parseQuery } from "./parse-query"
-import { buildSchema } from "./schema"
+import { buildSchema } from "@/test/schema"
 import { DEFAULT_SORT, type Sorting } from "./sort"
 
 const collectionOver = (rows: Deployment[]) => {
