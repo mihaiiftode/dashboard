@@ -202,6 +202,29 @@ describe("compileQuery", () => {
   })
 })
 
+describe("underscored values", () => {
+  it("matches an enum value that contains an underscore", async () => {
+    const cron = deployment(1, { type: "cron_job" })
+    const worker = deployment(2, { type: "worker" })
+
+    expect(await namesFor("type:cron_job", [cron, worker])).toEqual([cron.attributes.name])
+  })
+
+  it("resolves an alias onto an underscored enum value", async () => {
+    const web = deployment(1, { type: "web_service" })
+    const worker = deployment(2, { type: "worker" })
+
+    expect(await namesFor("type:web", [web, worker])).toEqual([web.attributes.name])
+  })
+
+  it("matches an attribute value that contains an underscore", async () => {
+    const piped = deployment(1, { attributes: { name: "one", team: "data_pipeline" } })
+    const plain = deployment(2, { attributes: { name: "two", team: "payments" } })
+
+    expect(await namesFor("team:data_pipeline", [piped, plain])).toEqual(["one"])
+  })
+})
+
 describe("compileScopeCounts", () => {
   it("counts only the deleted rows the deleted scope will list", async () => {
     const alive = deployment(1)

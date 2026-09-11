@@ -1,4 +1,15 @@
-import { coalesce, concat, count, ilike, isNull, not, type QueryBuilder, type RefsForContext } from "@tanstack/react-db"
+import {
+  coalesce,
+  concat,
+  count,
+  eq,
+  ilike,
+  isNull,
+  lower,
+  not,
+  type QueryBuilder,
+  type RefsForContext,
+} from "@tanstack/react-db"
 import { RETENTION_DAYS } from "@/lib/format"
 import type { Deployment } from "../store/schema"
 import { FilterKind, FilterOperator, type Filter, type QueryPlan } from "./filters"
@@ -113,17 +124,15 @@ const compileFilter = (row: DeploymentRefs, filter: Filter, catalog: FieldCatalo
 const matchString = (target: Parameters<typeof ilike>[0], value: string, operator: FilterOperator): Expression => {
   switch (operator) {
     case FilterOperator.Equals:
-      return ilike(target, escapeLike(value))
+      return eq(lower(target), value.toLowerCase())
     case FilterOperator.Contains:
-      return ilike(target, "%" + escapeLike(value) + "%")
+      return ilike(target, "%" + value + "%")
     case FilterOperator.Glob:
       return ilike(target, globPattern(value))
   }
 }
 
-const escapeLike = (value: string): string => value.replaceAll(/[%_]/gu, "\\$&")
-
-const globPattern = (value: string): string => escapeLike(value).replaceAll("*", "%").replaceAll("?", "_")
+const globPattern = (value: string): string => value.replaceAll("*", "%").replaceAll("?", "_")
 
 const fieldReference = (row: DeploymentRefs, field: Field) =>
   field.attribute ? row.attributes[field.key] : row[field.column]
