@@ -36,6 +36,9 @@ Copy `.env.example`. The API reads `API_`-prefixed variables, the browser bundle
 | `API_MONGO_URL` | `mongodb://localhost:27017` | Point at another database |
 | `API_DATABASE_NAME` | `deployments` | Run two datasets side by side |
 | `API_CORS_ORIGINS` | `["http://localhost:3000"]` | Serve the dashboard from another origin |
+| `API_CORS_ORIGIN_REGEX` | unset | Match origins whose hostname is not fixed, such as per-deployment preview URLs |
+| `API_SEED_ON_STARTUP` | `false` | Fill an empty collection on boot, for environments with no shell to run `make seed` |
+| `API_SEED_COUNT` | `5000` | How many deployments that startup seed writes |
 | `API_LOG_FORMAT` | `plain` | `json` for structured logs |
 | `API_LOG_LEVEL` | `INFO` | `DEBUG` while chasing something |
 | `API_HEARTBEAT_SECONDS` | `15` | How often the change stream sends a keep-alive comment |
