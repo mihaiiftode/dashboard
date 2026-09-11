@@ -35,9 +35,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             deployments = MongoDeploymentRepository.from_client(
                 client, settings.database_name
             )
-            await best_effort("index creation", deployments.ensure_indexes())
+            await ensure_database_work("index creation", deployments.ensure_indexes())
             if settings.seed_on_startup:
-                await best_effort(
+                await ensure_database_work(
                     "seeding",
                     seed_if_empty(client[settings.database_name], settings.seed_count),
                 )
@@ -65,7 +65,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     return app
 
 
-async def best_effort(step: str, work: Coroutine[Any, Any, None]) -> None:
+async def ensure_database_work(step: str, work: Coroutine[Any, Any, None]) -> None:
     try:
         await work
     except PyMongoError as error:
