@@ -58,6 +58,7 @@ type Acquired = {
   stream$?: Subject<PullStreamItem>
   replication?: RxReplicationState<Deployment, Checkpoint | undefined>
   failures?: Subscription
+  idle?: Subscription
   collection?: DeploymentsCollection
 }
 
@@ -65,6 +66,7 @@ const release = async (acquired: Acquired): Promise<void> => {
   const steps: [string, () => unknown][] = [
     ["event stream", () => acquired.unsubscribe?.()],
     ["replication errors", () => acquired.failures?.unsubscribe()],
+    ["idle watch", () => acquired.idle?.unsubscribe()],
     ["pull stream", () => acquired.stream$?.complete()],
     ["replication", () => acquired.replication?.cancel()],
     ["collection", () => acquired.collection?.cleanup()],
@@ -116,6 +118,9 @@ export const createDeploymentsStore = async ({
         tracker.connectionChanged(navigator.onLine ? "reconnecting" : "offline")
         stream$.next("RESYNC")
       },
+    })
+    acquired.idle = replication.active$.subscribe((active) => {
+      if (!active) tracker.idled()
     })
     acquired.failures = replication.error$.subscribe((error) => {
       log.warning("replication error: {message}", { message: String(error?.message ?? error) })

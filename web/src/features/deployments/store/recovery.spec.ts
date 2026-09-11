@@ -117,6 +117,45 @@ describe("replication recovery", () => {
     expect(api.reconciliations.length).toBe(1)
   })
 
+  it("stops marking a row pending once a delete and restore both land", async () => {
+    const rows = deployments(1)
+    const id = rows[0].deployment_id
+    const api = createFakeDeploymentsApi(rows)
+    const current = await open(api)
+    await vi.waitFor(() => expect(current.collection.size).toBe(1))
+
+    current.collection.update(id, (draft) => {
+      draft.deleted_at = new Date().toISOString()
+    })
+    await vi.waitFor(() => expect(api.rowFor(id)?.deleted_at).not.toBeNull())
+    current.collection.update(id, (draft) => {
+      draft.deleted_at = null
+    })
+    await vi.waitFor(() => expect(api.rowFor(id)?.deleted_at).toBeNull())
+
+    await vi.waitFor(() => expect(current.sync.snapshot().pendingIds.size).toBe(0))
+  })
+
+  it("releases the row once a held delete and restore both settle", async () => {
+    const rows = deployments(1)
+    const id = rows[0].deployment_id
+    const api = createFakeDeploymentsApi(rows)
+    const current = await open(api)
+    await vi.waitFor(() => expect(current.collection.size).toBe(1))
+    const release = api.holdWrites()
+
+    current.collection.update(id, (draft) => {
+      draft.deleted_at = new Date().toISOString()
+    })
+    await vi.waitFor(() => expect(current.sync.snapshot().pendingIds.size).toBe(1))
+    current.collection.update(id, (draft) => {
+      draft.deleted_at = null
+    })
+    release()
+
+    await vi.waitFor(() => expect(current.sync.snapshot().pendingIds.size).toBe(0), { timeout: 4000 })
+  })
+
   it("pulls a write that landed after the server seed was taken", async () => {
     const seeded = deployments(2)
     const missed = deployment(80)

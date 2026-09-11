@@ -24,6 +24,7 @@ export type SyncTracker = SyncStatus & {
   conflicted: (conflict: WriteConflict) => void
   rejected: (rejection: WriteRejection) => void
   connectionChanged: (connection: ConnectionState) => void
+  idled: () => void
 }
 
 export const createSyncTracker = (): SyncTracker => {
@@ -69,6 +70,12 @@ export const createSyncTracker = (): SyncTracker => {
       pending.delete(deploymentId)
       publish({})
       return false
+    },
+    idled: () => {
+      if (pending.size === 0) return
+      queued.clear()
+      pending.clear()
+      publish({})
     },
     conflicted: (conflict) => publish({ conflict }),
     rejected: (rejection) => publish({ rejection }),
