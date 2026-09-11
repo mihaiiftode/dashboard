@@ -1,16 +1,15 @@
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Coroutine
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pymongo import AsyncMongoClient
-from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import PyMongoError
 
 from app.deployments.feed import ChangeFeed
 from app.deployments.mongo_repository import MongoDeploymentRepository
-from app.deployments.repository import DeploymentRepository
 from app.deployments.router import router as deployments_router
 from app.deployments.seeding import seed_if_empty
 from app.deployments.service import DeploymentService
@@ -36,10 +35,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             deployments = MongoDeploymentRepository.from_client(
                 client, settings.database_name
             )
-            await ensure_indexes(deployments)
+            await despite_database_failure(
+                "index creation", deployments.ensure_indexes()
+            )
             if settings.seed_on_startup:
-                await seed_deployments(
-                    client[settings.database_name], settings.seed_count
+                await despite_database_failure(
+                    "seeding",
+                    seed_if_empty(client[settings.database_name], settings.seed_count),
                 )
             changes = ChangeFeed()
             app.state.settings = settings
@@ -65,15 +67,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     return app
 
 
-async def ensure_indexes(repository: DeploymentRepository) -> None:
+async def despite_database_failure(step: str, work: Coroutine[Any, Any, None]) -> None:
     try:
-        await repository.ensure_indexes()
+        await work
     except PyMongoError as error:
-        logger.error("index creation failed, continuing without it: %s", error)
-
-
-async def seed_deployments(database: AsyncDatabase, count: int) -> None:
-    try:
-        await seed_if_empty(database, count)
-    except PyMongoError as error:
-        logger.error("seeding failed, continuing without it: %s", error)
+        logger.error("%s failed, continuing without it: %s", step, error)

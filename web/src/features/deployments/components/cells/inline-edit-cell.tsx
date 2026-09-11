@@ -1,10 +1,10 @@
 "use client"
 
-import { Spinner } from "@/components/ui/spinner"
 import { cn } from "@/lib/utils"
 import type { ValueOption } from "../table/field-presentation"
 import { InlineEditor } from "./inline-editor"
-import { CELL_TRIGGER_CLASS, useCellEditing } from "./use-cell-editing"
+import { useCellEditing } from "./use-cell-editing"
+import { CellTrigger } from "./cell-trigger"
 
 type InlineEditCellProps = {
   label: string
@@ -36,22 +36,19 @@ export const InlineEditCell = ({
     )
   }
   return (
-    <button
-      type="button"
-      data-slot="cell-editor"
-      onClick={editor.start}
-      disabled={readOnly}
-      aria-label={value ? `Edit ${label}: ${value}` : `Set ${label}`}
-      title={readOnly ? undefined : "Click to edit"}
+    <CellTrigger
+      editLabel={value ? `Edit ${label}: ${value}` : `Set ${label}`}
+      hint="Click to edit"
+      readOnly={readOnly}
+      pending={pending}
+      onStart={editor.start}
       className={cn(
-        CELL_TRIGGER_CLASS,
         mono && "font-mono text-xs",
         muted && value && "text-muted-foreground",
         !value && "text-muted-foreground/60",
       )}
     >
       <span className="truncate">{value || placeholder}</span>
-      {pending ? <Spinner className="size-3 shrink-0 text-muted-foreground" /> : null}
-    </button>
+    </CellTrigger>
   )
 }

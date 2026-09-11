@@ -1,11 +1,11 @@
 "use client"
 
-import { Spinner } from "@/components/ui/spinner"
 import { cn } from "@/lib/utils"
 import type { ValueOption } from "../table/field-presentation"
 import { ValueChip } from "../value-chip"
 import { InlineEditor } from "./inline-editor"
-import { CELL_TRIGGER_CLASS, useCellEditing } from "./use-cell-editing"
+import { useCellEditing } from "./use-cell-editing"
+import { CellTrigger } from "./cell-trigger"
 
 type ChipEditCellProps = {
   label: string
@@ -23,17 +23,15 @@ export const ChipEditCell = ({ label, value, options, pending, readOnly, onCommi
   }
   const unset = value === undefined
   return (
-    <button
-      type="button"
-      data-slot="cell-editor"
-      onClick={editor.start}
-      disabled={readOnly}
-      aria-label={unset ? `Set ${label}` : `Edit ${label}: ${value}`}
-      title={readOnly ? undefined : unset ? `Set ${label}` : "Click to edit"}
-      className={cn(CELL_TRIGGER_CLASS, unset && "text-muted-foreground/60")}
+    <CellTrigger
+      editLabel={unset ? `Set ${label}` : `Edit ${label}: ${value}`}
+      hint={unset ? `Set ${label}` : "Click to edit"}
+      readOnly={readOnly}
+      pending={pending}
+      onStart={editor.start}
+      className={cn(unset && "text-muted-foreground/60")}
     >
       {unset ? "—" : <ValueChip keyName={label} value={value} />}
-      {pending ? <Spinner className="size-3 shrink-0 text-muted-foreground" /> : null}
-    </button>
+    </CellTrigger>
   )
 }
