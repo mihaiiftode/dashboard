@@ -28,7 +28,7 @@ async def test_closes_the_client_when_startup_fails(
         raise StartupFailure
 
     monkeypatch.setattr(AsyncMongoClient, "close", record_close)
-    monkeypatch.setattr(main, "despite_database_failure", fail)
+    monkeypatch.setattr(main, "best_effort", fail)
 
     with pytest.raises(StartupFailure):
         async with client_for(create_app(settings)):
