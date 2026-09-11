@@ -10,7 +10,7 @@ import {
   type QueryBuilder,
   type RefsForContext,
 } from "@tanstack/react-db"
-import { RETENTION_DAYS } from "../store/schema"
+import { DAY_MS, RETENTION_DAYS } from "../store/schema"
 import type { Deployment } from "../store/schema"
 import { FilterKind, FilterOperator, type Filter, type QueryPlan } from "./filters"
 import { resolveKey, type Field, type FieldCatalog } from "./fields"
@@ -25,7 +25,6 @@ type DeploymentContext = {
 type DeploymentQuery = QueryBuilder<DeploymentContext>
 type DeploymentRefs = RefsForContext<DeploymentContext>["deployment"]
 type Expression = ReturnType<typeof isNull>
-const DAY_MS = 86_400_000
 
 export const retentionCutoff = (now = Date.now()): number => now - RETENTION_DAYS * DAY_MS
 

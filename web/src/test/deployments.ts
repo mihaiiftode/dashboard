@@ -1,11 +1,10 @@
-import { ENVIRONMENTS, STATUSES, TYPES, type Deployment } from "@/features/deployments/store/schema"
+import { DAY_MS, ENVIRONMENTS, STATUSES, TYPES, type Deployment } from "@/features/deployments/store/schema"
 const TEAMS = ["payments", "checkout", "identity", "platform", "search"] as const
 const REGIONS = ["us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1"] as const
 const PRIORITIES = ["critical", "high", "medium", "low"] as const
 
 const BASE_MS = Date.parse("2026-03-01T12:00:00.000Z")
 const MINUTE_MS = 60_000
-const DAY_MS = 86_400_000
 
 const hexDigitsFor = (index: number): string => {
   let state = (index + 1) * 2654435761

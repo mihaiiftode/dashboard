@@ -1,10 +1,8 @@
 import { act, renderHook } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { RETENTION_DAYS } from "@/features/deployments/store/schema"
+import { DAY_MS, RETENTION_DAYS } from "@/features/deployments/store/schema"
 import { deployment } from "@/test/deployments"
 import { useRetentionCutoff } from "./use-retention-cutoff"
-
-const DAY_MS = 86_400_000
 
 describe("useRetentionCutoff", () => {
   afterEach(() => vi.useRealTimers())

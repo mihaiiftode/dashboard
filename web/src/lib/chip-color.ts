@@ -9,8 +9,12 @@ const CLASSES = [
   "bg-chip-8/10 text-chip-8 border-chip-8/30",
 ]
 
+const HASH_SEED = 5381
+
 export function chipClass(value: string): string {
-  let h = 5381
-  for (let i = 0; i < value.length; i++) h = Math.trunc((h << 5) + h + (value.codePointAt(i) ?? 0))
-  return CLASSES[Math.abs(h) % CLASSES.length]
+  let hash = HASH_SEED
+  for (let index = 0; index < value.length; index++) {
+    hash = Math.trunc((hash << 5) + hash + (value.codePointAt(index) ?? 0))
+  }
+  return CLASSES[Math.abs(hash) % CLASSES.length]
 }

@@ -1,4 +1,4 @@
-import { createCollection, type Collection } from "@tanstack/react-db"
+import { createCollection, type Collection, type UtilsRecord } from "@tanstack/react-db"
 import { rxdbCollectionOptions } from "@tanstack/rxdb-db-collection"
 import {
   RxDBMigrationSchemaPlugin,
@@ -34,7 +34,7 @@ const PUSH_BATCH_SIZE = 5
 const RECONCILE_EVERY_MS = 300_000
 const PLANTED_COOKIE_SECONDS = 2_592_000
 
-type DeploymentsCollection = Collection<Deployment, string, Record<string, never>>
+type DeploymentsCollection = Collection<Deployment, string, UtilsRecord>
 
 export type DeploymentsStore = {
   collection: DeploymentsCollection
@@ -140,7 +140,7 @@ export const createDeploymentsStore = async ({
           throw error
         }
       },
-    }) as unknown as DeploymentsCollection
+    })
     acquired.collection = collection
     if ((await rxCollection.count().exec()) > 0) rememberLocalRows()
 

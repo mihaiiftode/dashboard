@@ -1,11 +1,10 @@
 "use client"
 
 import { createContext, use, useEffect, useState, type ReactNode } from "react"
-import { RETENTION_DAYS } from "./schema"
+import { DAY_MS, RETENTION_DAYS } from "./schema"
 import { retentionCutoff } from "../query/compile"
 import type { Deployment } from "./schema"
 
-const DAY_MS = 86_400_000
 const MAX_TIMEOUT_MS = 2_147_483_647
 
 const SeededCutoffContext = createContext<number | null>(null)

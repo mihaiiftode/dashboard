@@ -9,16 +9,18 @@ import { AttributesEditor } from "./attributes-editor"
 const MAX_SHOWN = 2
 const CHAR_BUDGET = 40
 
+const SEPARATOR_WIDTH = 4
+
 function packChips(entries: readonly (readonly [string, string])[]): number {
-  let used = 0
-  let n = 0
-  for (const [k, v] of entries) {
-    const cost = k.length + v.length + 4
-    if (n > 0 && (n >= MAX_SHOWN || used + cost > CHAR_BUDGET)) break
-    used += cost
-    n++
+  let spent = 0
+  let shown = 0
+  for (const [key, value] of entries) {
+    const cost = key.length + value.length + SEPARATOR_WIDTH
+    if (shown > 0 && (shown >= MAX_SHOWN || spent + cost > CHAR_BUDGET)) break
+    spent += cost
+    shown++
   }
-  return n
+  return shown
 }
 type AttributesCellProps = {
   deployment: Deployment

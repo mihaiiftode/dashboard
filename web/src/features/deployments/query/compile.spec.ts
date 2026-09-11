@@ -1,6 +1,7 @@
 import { createCollection, createLiveQueryCollection, localOnlyCollectionOptions } from "@tanstack/react-db"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { deletedDaysAgo, deployment, deployments } from "@/test/deployments"
+import { DAY_MS } from "../store/schema"
 import type { Deployment } from "../store/schema"
 import { compileQuery, compileScopeCounts } from "./compile"
 import { parseQuery } from "./parse-query"
@@ -178,8 +179,8 @@ describe("compileQuery", () => {
   })
 
   it("hides a deployment whose retention window has run out", async () => {
-    const kept = deployment(1, { deleted_at: new Date(Date.now() - 5 * 86400e3).toISOString() })
-    const expired = deployment(2, { deleted_at: new Date(Date.now() - 31 * 86400e3).toISOString() })
+    const kept = deployment(1, { deleted_at: new Date(Date.now() - 5 * DAY_MS).toISOString() })
+    const expired = deployment(2, { deleted_at: new Date(Date.now() - 31 * DAY_MS).toISOString() })
 
     expect(await namesFor("is:deleted", [kept, expired])).toEqual([kept.attributes.name])
     expect(await namesFor("", [kept, expired])).toEqual([])
