@@ -24,9 +24,9 @@ export const pushRow = async (
   tracker.began(attempted.deployment_id)
   const known = acknowledged.get(attempted.deployment_id) ?? master
   const settled =
-    attempted.deleted_at === known.deleted_at
-      ? await settleWrite(attempted, master, api, acknowledged)
-      : await settleScope(attempted, api, acknowledged)
+    isDeleted(attempted) || isDeleted(known)
+      ? await settleScope(attempted, api, acknowledged)
+      : await settleWrite(attempted, master, api, acknowledged)
   if (settled.rejection === null && settled.winner !== null) {
     const conflict = conflictBetween(attempted, settled.winner)
     if (conflict) {
@@ -76,10 +76,14 @@ const settleScope = async (
 }
 
 const changedScope = async (attempted: Deployment, api: DeploymentsApi): Promise<Deployment> => {
+  const current = await api.get(attempted.deployment_id)
+  if (isDeleted(attempted) === isDeleted(current)) return current
   if (attempted.deleted_at === null) return api.restore(attempted.deployment_id)
   await api.remove(attempted.deployment_id)
   return api.get(attempted.deployment_id)
 }
+
+const isDeleted = (row: Deployment): boolean => row.deleted_at !== null
 
 const settleWrite = async (
   attempted: Deployment,
